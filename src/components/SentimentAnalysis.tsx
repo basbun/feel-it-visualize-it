@@ -9,39 +9,53 @@ interface SentimentAnalysisProps {
   text: string;
 }
 
+// Helper function to split text into individual comments
+const splitTextIntoComments = (text: string): string[] => {
+  if (!text) return [];
+  
+  // Split by common delimiters: newlines, semicolons, or commas
+  const comments = text.split(/[\n;,]+/)
+    .map(comment => comment.trim())
+    .filter(comment => comment.length > 0);
+  
+  return comments;
+};
+
 // Helper function to calculate sentiment score (mock implementation)
 const analyzeSentiment = (text: string) => {
-  if (!text) return { score: 0, sentences: [] };
+  if (!text) return { score: 0, comments: [] };
+  
+  // Split the input text into separate comments
+  const comments = splitTextIntoComments(text);
   
   // This is a very simple mock implementation
   // In a real app, you would use a proper sentiment analysis library or API
-  const words = text.toLowerCase().split(/\s+/);
-  
   const positiveWords = ['good', 'great', 'excellent', 'happy', 'positive', 'nice', 'love', 'best'];
-  const negativeWords = ['bad', 'worst', 'terrible', 'sad', 'negative', 'hate', 'awful', 'poor'];
+  const negativeWords = ['bad', 'worst', 'terrible', 'sad', 'negative', 'hate', 'awful', 'poor', 'disappointed'];
   
-  // Split text into sentences for individual analysis
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  const sentenceScores = sentences.map(sentence => {
-    const words = sentence.toLowerCase().split(/\s+/);
-    let sentenceScore = 0;
+  // Analyze each comment individually
+  const commentScores = comments.map(comment => {
+    const words = comment.toLowerCase().split(/\s+/);
+    let commentScore = 0;
+    
     words.forEach(word => {
-      if (positiveWords.includes(word)) sentenceScore += 0.3;
-      if (negativeWords.includes(word)) sentenceScore -= 0.3;
+      if (positiveWords.includes(word)) commentScore += 0.3;
+      if (negativeWords.includes(word)) commentScore -= 0.3;
     });
+    
     // Normalize between -1 and 1
-    sentenceScore = Math.max(-1, Math.min(1, sentenceScore));
-    return { text: sentence.trim(), score: sentenceScore };
+    commentScore = Math.max(-1, Math.min(1, commentScore));
+    return { text: comment, score: commentScore };
   });
   
-  // Calculate overall score as average of sentence scores
-  const overallScore = sentenceScores.length > 0 
-    ? sentenceScores.reduce((sum, s) => sum + s.score, 0) / sentenceScores.length 
+  // Calculate overall score as average of comment scores
+  const overallScore = commentScores.length > 0 
+    ? commentScores.reduce((sum, c) => sum + c.score, 0) / commentScores.length 
     : 0;
   
   return {
     score: Number(overallScore.toFixed(2)),
-    sentences: sentenceScores
+    comments: commentScores
   };
 };
 
@@ -71,16 +85,19 @@ const getSentimentIcon = (score: number) => {
 };
 
 const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
-  const [analysis, setAnalysis] = useState<{ score: number; sentences: { text: string; score: number }[] }>({ 
+  const [analysis, setAnalysis] = useState<{ 
+    score: number; 
+    comments: { text: string; score: number }[] 
+  }>({ 
     score: 0, 
-    sentences: [] 
+    comments: [] 
   });
   const [stdDev, setStdDev] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
 
   useEffect(() => {
     if (!text) {
-      setAnalysis({ score: 0, sentences: [] });
+      setAnalysis({ score: 0, comments: [] });
       setStdDev(0);
       setDistributionData([]);
       return;
@@ -91,8 +108,8 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
     setAnalysis(result);
 
     // Calculate standard deviation
-    if (result.sentences.length > 0) {
-      const scores = result.sentences.map(s => s.score);
+    if (result.comments.length > 0) {
+      const scores = result.comments.map(c => c.score);
       setStdDev(calculateStdDev(scores));
 
       // Create distribution data
@@ -167,6 +184,10 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
                   <div className="text-sm text-muted-foreground">Standard Deviation</div>
                   <div className="text-2xl font-bold">{stdDev}</div>
                 </div>
+                <div className="bg-muted/50 p-4 rounded-lg col-span-2">
+                  <div className="text-sm text-muted-foreground">Comments Analyzed</div>
+                  <div className="text-2xl font-bold">{analysis.comments.length}</div>
+                </div>
               </div>
             </div>
             
@@ -199,6 +220,20 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
                     </BarChart>
                   </ResponsiveContainer>
                 )}
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Individual Comments</h3>
+              <div className="space-y-2">
+                {analysis.comments.map((comment, index) => (
+                  <div key={index} className={`p-3 rounded-md border border-${getSentimentColor(comment.score)}`}>
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm font-medium">{comment.text}</div>
+                      <div className="text-sm font-bold">{comment.score.toFixed(2)}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </>
