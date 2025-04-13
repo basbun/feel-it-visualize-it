@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,11 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				sentiment: {
+					positive: '#4ade80', // Green for positive sentiment
+					neutral: '#a3a3a3',  // Gray for neutral sentiment
+					negative: '#f87171'  // Red for negative sentiment
 				}
 			},
 			borderRadius: {
