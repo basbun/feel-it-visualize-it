@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -5,7 +6,7 @@ import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet } from "lucid
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import * as XLSX from 'xlsx';
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SentimentAnalysisProps {
   text: string;
