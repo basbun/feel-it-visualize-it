@@ -5,6 +5,7 @@ import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet } from "lucid
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import * as XLSX from 'xlsx';
+import { supabase } from "@/lib/supabase";
 
 interface SentimentAnalysisProps {
   text: string;
@@ -156,16 +157,15 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
   const [analysis, setAnalysis] = useState<{ 
     score: number; 
     comments: { text: string; score: number }[] 
-  }>({ 
-    score: 0, 
-    comments: [] 
-  });
+  }>({ score: 0, comments: [] });
+  const [aiScore, setAiScore] = useState<number | null>(null);
   const [stdDev, setStdDev] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
 
   useEffect(() => {
     if (!text) {
       setAnalysis({ score: 0, comments: [] });
+      setAiScore(null);
       setStdDev(0);
       setDistributionData([]);
       return;
@@ -173,6 +173,25 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
 
     const result = analyzeSentiment(text);
     setAnalysis(result);
+
+    const getAISentiment = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
+          body: { text }
+        });
+        
+        if (error) {
+          console.error('Error getting AI sentiment:', error);
+          return;
+        }
+        
+        setAiScore(data.score);
+      } catch (error) {
+        console.error('Error invoking AI sentiment analysis:', error);
+      }
+    };
+
+    getAISentiment();
 
     if (result.comments.length > 0) {
       const scores = result.comments.map(c => c.score);
@@ -281,10 +300,16 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
               />
               <div className="flex justify-between items-center">
                 <span className="font-medium">
-                  Score: {analysis.score}
+                  Rule-based Score: {analysis.score}
                 </span>
                 <span className="font-medium">{sentimentLabel}</span>
               </div>
+              {aiScore !== null && (
+                <div className="mt-2 p-3 bg-muted rounded-lg">
+                  <div className="font-medium mb-1">AI Analysis Score</div>
+                  <div className="text-2xl font-bold">{aiScore.toFixed(2)}</div>
+                </div>
+              )}
             </div>
             
             <div>
