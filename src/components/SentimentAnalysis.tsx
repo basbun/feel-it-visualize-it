@@ -1,19 +1,18 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Smile, Meh, Frown, BarChart as ChartIcon } from "lucide-react";
+import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet } from "lucide-react";
 import { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import * as XLSX from 'xlsx';
 
 interface SentimentAnalysisProps {
   text: string;
 }
 
-// Helper function to split text into individual comments
 const splitTextIntoComments = (text: string): string[] => {
   if (!text) return [];
   
-  // Split by common delimiters: newlines, semicolons, or periods followed by space
   const comments = text.split(/[\n;.]+/)
     .map(comment => comment.trim())
     .filter(comment => comment.length > 0);
@@ -21,14 +20,11 @@ const splitTextIntoComments = (text: string): string[] => {
   return comments;
 };
 
-// Helper function to calculate sentiment score with improved calibration
 const analyzeSentiment = (text: string) => {
   if (!text) return { score: 0, comments: [] };
   
-  // Split the input text into separate comments
   const comments = splitTextIntoComments(text);
   
-  // Enhanced sentiment analysis with more words and better scoring
   const positiveWords = [
     'good', 'great', 'excellent', 'happy', 'positive', 'nice', 'love', 'best', 'wonderful',
     'amazing', 'outstanding', 'fantastic', 'terrific', 'impressive', 'beautiful', 'brilliant',
@@ -63,21 +59,18 @@ const analyzeSentiment = (text: string) => {
     'scarcely', 'seldom', 'rarely', 'nothing', 'nobody', 'none', 'nowhere', 'without'
   ];
   
-  // Analyze each comment individually with the improved algorithm
   const commentScores = comments.map(comment => {
     const lowerComment = comment.toLowerCase();
     const words = lowerComment.split(/\s+/);
     let commentScore = 0;
     let totalWordWeight = 0;
     
-    // Start with baseline analysis of the content
     for (let i = 0; i < words.length; i++) {
-      const word = words[i].replace(/[^\w']/g, ''); // Remove punctuation except apostrophes
+      const word = words[i].replace(/[^\w']/g, '');
       let wordScore = 0;
       let intensifierMultiplier = 1;
       let negationEffect = 1;
       
-      // Check for intensifiers in preceding words (up to 2 words back)
       for (let j = Math.max(0, i-2); j < i; j++) {
         if (intensifiers.includes(words[j])) {
           intensifierMultiplier = 1.8;
@@ -85,7 +78,6 @@ const analyzeSentiment = (text: string) => {
         }
       }
       
-      // Check for negations in preceding words (up to 3 words back)
       for (let j = Math.max(0, i-3); j < i; j++) {
         if (negators.includes(words[j])) {
           negationEffect = -1;
@@ -93,17 +85,14 @@ const analyzeSentiment = (text: string) => {
         }
       }
       
-      // Score the word
       if (positiveWords.includes(word)) {
         wordScore = 0.6 * intensifierMultiplier * negationEffect;
       } else if (negativeWords.includes(word)) {
         wordScore = -0.6 * intensifierMultiplier * negationEffect;
       }
       
-      // More weight to words that appear at beginning or end
       const positionFactor = (i < words.length / 4 || i > words.length * 3/4) ? 1.5 : 1;
       
-      // Apply position factor
       wordScore *= positionFactor;
       
       commentScore += wordScore;
@@ -112,19 +101,13 @@ const analyzeSentiment = (text: string) => {
       }
     }
     
-    // Normalize score based on comment length and sentiment words
     if (totalWordWeight > 0) {
-      // Adjust scoring to be more responsive
-      // For short comments, a single sentiment word has more impact
       const lengthFactor = Math.min(2.0, 3.0 / Math.sqrt(words.length));
       commentScore = (commentScore / Math.max(1, Math.sqrt(totalWordWeight))) * lengthFactor;
       
-      // Apply a minimum scoring threshold to prevent neutral scores
       if (commentScore > 0 && commentScore < 0.2) commentScore = 0.2;
       if (commentScore < 0 && commentScore > -0.2) commentScore = -0.2;
     } else {
-      // For comments with no sentiment words, assign a slightly neutral score
-      // based on presence of certain patterns
       const exclamationCount = (comment.match(/!/g) || []).length;
       const questionCount = (comment.match(/\?/g) || []).length;
       
@@ -132,13 +115,11 @@ const analyzeSentiment = (text: string) => {
       if (questionCount > 1) commentScore = -0.05 * questionCount;
     }
     
-    // Ensure score is between -1 and 1
     commentScore = Math.max(-1, Math.min(1, commentScore));
     
     return { text: comment, score: Number(commentScore.toFixed(2)) };
   });
   
-  // Calculate overall score as average of comment scores
   const overallScore = commentScores.length > 0 
     ? commentScores.reduce((sum, c) => sum + c.score, 0) / commentScores.length 
     : 0;
@@ -149,7 +130,6 @@ const analyzeSentiment = (text: string) => {
   };
 };
 
-// Helper function to calculate standard deviation
 const calculateStdDev = (values: number[]): number => {
   if (values.length <= 1) return 0;
   
@@ -160,14 +140,12 @@ const calculateStdDev = (values: number[]): number => {
   return Number(Math.sqrt(variance).toFixed(2));
 };
 
-// Helper function to get color based on sentiment score
 const getSentimentColor = (score: number): string => {
   if (score > 0.3) return 'sentiment-positive';
   if (score < -0.3) return 'sentiment-negative';
   return 'sentiment-neutral';
 };
 
-// Helper function to get icon based on sentiment score
 const getSentimentIcon = (score: number) => {
   if (score > 0.3) return <Smile className="h-6 w-6 text-green-500" />;
   if (score < -0.3) return <Frown className="h-6 w-6 text-red-500" />;
@@ -193,16 +171,13 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
       return;
     }
 
-    // Perform sentiment analysis
     const result = analyzeSentiment(text);
     setAnalysis(result);
 
-    // Calculate standard deviation
     if (result.comments.length > 0) {
       const scores = result.comments.map(c => c.score);
       setStdDev(calculateStdDev(scores));
 
-      // Create distribution data
       const distribution = [
         { range: "Very Negative (-1.0 to -0.6)", count: 0 },
         { range: "Negative (-0.6 to -0.2)", count: 0 },
@@ -223,24 +198,46 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
     }
   }, [text]);
 
-  // Calculate normalized score (0-100) for progress bar
+  const handleExportToExcel = () => {
+    if (analysis.comments.length === 0) return;
+
+    const exportData = analysis.comments.map((comment, index) => ({
+      'Comment Number': index + 1,
+      'Comment Text': comment.text,
+      'Sentiment Score': comment.score,
+      'Sentiment Category': comment.score > 0.3 ? 'Positive' : 
+                          comment.score < -0.3 ? 'Negative' : 'Neutral'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sentiment Analysis");
+
+    const colWidths = [
+      { wch: 15 },
+      { wch: 50 },
+      { wch: 15 },
+      { wch: 15 }
+    ];
+    ws['!cols'] = colWidths;
+
+    XLSX.writeFile(wb, "sentiment-analysis.xlsx");
+  };
+
   const normalizedScore = ((analysis.score + 1) / 2) * 100;
   
-  // Determine sentiment label
   let sentimentLabel = "Neutral";
   if (analysis.score > 0.6) sentimentLabel = "Very Positive";
   else if (analysis.score > 0.2) sentimentLabel = "Positive";
   else if (analysis.score < -0.6) sentimentLabel = "Very Negative";
   else if (analysis.score < -0.2) sentimentLabel = "Negative";
   
-  // Get progress bar color
   const getProgressColor = () => {
     if (analysis.score > 0.3) return "bg-green-500";
     if (analysis.score < -0.3) return "bg-red-500";
     return "bg-yellow-500";
   };
   
-  // Get comment border color
   const getCommentBorderColor = (score: number) => {
     if (score > 0.3) return "border-green-500";
     if (score < -0.3) return "border-red-500";
@@ -250,10 +247,23 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="flex items-center">
-          {getSentimentIcon(analysis.score)}
-          <span className="ml-2">Sentiment Analysis</span>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center">
+            {getSentimentIcon(analysis.score)}
+            <span className="ml-2">Sentiment Analysis</span>
+          </CardTitle>
+          {analysis.comments.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportToExcel}
+              className="flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export to Excel
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6 h-[calc(100%-80px)] overflow-auto">
         {text ? (
