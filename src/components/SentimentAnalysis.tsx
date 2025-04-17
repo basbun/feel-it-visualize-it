@@ -21,31 +21,93 @@ const splitTextIntoComments = (text: string): string[] => {
   return comments;
 };
 
-// Helper function to calculate sentiment score (mock implementation)
+// Helper function to calculate sentiment score with improved calibration
 const analyzeSentiment = (text: string) => {
   if (!text) return { score: 0, comments: [] };
   
   // Split the input text into separate comments
   const comments = splitTextIntoComments(text);
   
-  // This is a very simple mock implementation
-  // In a real app, you would use a proper sentiment analysis library or API
-  const positiveWords = ['good', 'great', 'excellent', 'happy', 'positive', 'nice', 'love', 'best'];
-  const negativeWords = ['bad', 'worst', 'terrible', 'sad', 'negative', 'hate', 'awful', 'poor', 'disappointed'];
+  // Enhanced sentiment analysis with more words and better scoring
+  const positiveWords = [
+    'good', 'great', 'excellent', 'happy', 'positive', 'nice', 'love', 'best', 'wonderful',
+    'amazing', 'outstanding', 'fantastic', 'terrific', 'impressive', 'beautiful', 'brilliant',
+    'delightful', 'perfect', 'pleased', 'superb', 'exciting', 'thrilled', 'joy', 'successful',
+    'awesome', 'incredible', 'remarkable', 'enjoy', 'praise', 'appreciated', 'satisfied'
+  ];
   
-  // Analyze each comment individually
+  const negativeWords = [
+    'bad', 'worst', 'terrible', 'sad', 'negative', 'hate', 'awful', 'poor', 'disappointed',
+    'horrible', 'unfortunate', 'failure', 'disappointing', 'useless', 'mediocre', 'rubbish',
+    'pathetic', 'horrible', 'disaster', 'frustrating', 'annoying', 'unhappy', 'angry', 'miserable',
+    'disgusting', 'dreadful', 'unpleasant', 'dislike', 'inadequate', 'inferior', 'problem'
+  ];
+  
+  const intensifiers = [
+    'very', 'extremely', 'absolutely', 'completely', 'totally', 'utterly', 
+    'really', 'truly', 'incredibly', 'exceptionally'
+  ];
+  
+  const negators = ['not', "don't", 'never', 'no', 'neither', 'nor', "isn't", "wasn't", "aren't", "weren't"];
+  
+  // Analyze each comment individually with the improved algorithm
   const commentScores = comments.map(comment => {
-    const words = comment.toLowerCase().split(/\s+/);
+    const lowerComment = comment.toLowerCase();
+    const words = lowerComment.split(/\s+/);
     let commentScore = 0;
+    let totalWordWeight = 0;
     
-    words.forEach(word => {
-      if (positiveWords.includes(word)) commentScore += 0.3;
-      if (negativeWords.includes(word)) commentScore -= 0.3;
-    });
+    // Start with baseline analysis of the content
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      let wordScore = 0;
+      let intensifierMultiplier = 1;
+      let negationEffect = 1;
+      
+      // Check for intensifiers in preceding words
+      if (i > 0 && intensifiers.includes(words[i-1])) {
+        intensifierMultiplier = 1.5;
+      }
+      
+      // Check for negations in preceding words (up to 3 words back)
+      for (let j = Math.max(0, i-3); j < i; j++) {
+        if (negators.includes(words[j])) {
+          negationEffect = -1;
+          break;
+        }
+      }
+      
+      // Score the word
+      if (positiveWords.includes(word)) {
+        wordScore = 0.5 * intensifierMultiplier * negationEffect;
+      } else if (negativeWords.includes(word)) {
+        wordScore = -0.5 * intensifierMultiplier * negationEffect;
+      }
+      
+      // More weight to words that appear at beginning or end
+      const positionFactor = (i < words.length / 4 || i > words.length * 3/4) ? 1.2 : 1;
+      
+      // Apply position factor
+      wordScore *= positionFactor;
+      
+      commentScore += wordScore;
+      if (wordScore !== 0) {
+        totalWordWeight++;
+      }
+    }
     
-    // Normalize between -1 and 1
+    // Normalize score based on comment length and sentiment words
+    if (totalWordWeight > 0) {
+      // Adjust scoring to be more responsive
+      // For short comments, a single sentiment word has more impact
+      const lengthFactor = Math.min(1.5, 2.5 / Math.sqrt(words.length));
+      commentScore = (commentScore / Math.max(1, Math.sqrt(totalWordWeight))) * lengthFactor;
+    }
+    
+    // Ensure score is between -1 and 1
     commentScore = Math.max(-1, Math.min(1, commentScore));
-    return { text: comment, score: commentScore };
+    
+    return { text: comment, score: Number(commentScore.toFixed(2)) };
   });
   
   // Calculate overall score as average of comment scores
