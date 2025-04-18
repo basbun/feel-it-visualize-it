@@ -23,6 +23,15 @@ serve(async (req) => {
   try {
     const { text } = await req.json()
     
+    if (!text || text.trim() === '') {
+      return new Response(
+        JSON.stringify({ error: 'No text provided for analysis' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    console.log(`Analyzing sentiment for text (length: ${text.length})`);
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -43,7 +52,17 @@ serve(async (req) => {
     })
 
     const data = await response.json()
+    console.log('OpenAI response:', data);
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid response from OpenAI API');
+    }
+    
     const aiScore = parseFloat(data.choices[0].message.content.trim())
+    
+    if (isNaN(aiScore)) {
+      throw new Error('Failed to parse sentiment score from OpenAI response');
+    }
 
     return new Response(
       JSON.stringify({ score: aiScore }),

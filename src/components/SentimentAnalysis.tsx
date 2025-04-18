@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import * as XLSX from 'xlsx';
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface SentimentAnalysisProps {
   text: string;
@@ -159,9 +160,11 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
     comments: { text: string; score: number }[] 
   }>({ score: 0, comments: [] });
   const [aiScore, setAiScore] = useState<number | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [stdDev, setStdDev] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
-
+  const { toast } = useToast();
+  
   useEffect(() => {
     if (!text) {
       setAnalysis({ score: 0, comments: [] });
@@ -171,10 +174,9 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
       return;
     }
 
-    const result = analyzeSentiment(text);
-    setAnalysis(result);
-
-    const getAISentiment = async () => {
+    const analyzeText = async () => {
+      setIsAnalyzing(true);
+      
       try {
         const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
           body: { text }
@@ -182,40 +184,66 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
         
         if (error) {
           console.error('Error getting AI sentiment:', error);
-          return;
+          toast({
+            title: "API Error",
+            description: "Could not get API sentiment analysis. Using rule-based analysis only.",
+            variant: "destructive"
+          });
+          
+          const fallbackResult = analyzeSentiment(text);
+          setAnalysis(fallbackResult);
+          processAnalysisResults(fallbackResult);
+        } else {
+          console.log('Received API sentiment analysis:', data);
+          setAiScore(data.score);
+          
+          const ruleBasedResult = analyzeSentiment(text);
+          setAnalysis(ruleBasedResult);
+          processAnalysisResults(ruleBasedResult);
         }
-        
-        setAiScore(data.score);
       } catch (error) {
         console.error('Error invoking AI sentiment analysis:', error);
+        toast({
+          title: "Analysis Error",
+          description: "An error occurred during sentiment analysis. Using rule-based analysis.",
+          variant: "destructive"
+        });
+        
+        const fallbackResult = analyzeSentiment(text);
+        setAnalysis(fallbackResult);
+        processAnalysisResults(fallbackResult);
+      } finally {
+        setIsAnalyzing(false);
       }
     };
+    
+    const processAnalysisResults = (result: { score: number, comments: { text: string; score: number }[] }) => {
+      if (result.comments.length > 0) {
+        const scores = result.comments.map(c => c.score);
+        setStdDev(calculateStdDev(scores));
 
-    getAISentiment();
+        const distribution = [
+          { range: "Very Negative (-1.0 to -0.6)", count: 0 },
+          { range: "Negative (-0.6 to -0.2)", count: 0 },
+          { range: "Neutral (-0.2 to 0.2)", count: 0 },
+          { range: "Positive (0.2 to 0.6)", count: 0 },
+          { range: "Very Positive (0.6 to 1.0)", count: 0 }
+        ];
 
-    if (result.comments.length > 0) {
-      const scores = result.comments.map(c => c.score);
-      setStdDev(calculateStdDev(scores));
+        scores.forEach(score => {
+          if (score >= -1.0 && score < -0.6) distribution[0].count++;
+          else if (score >= -0.6 && score < -0.2) distribution[1].count++;
+          else if (score >= -0.2 && score < 0.2) distribution[2].count++;
+          else if (score >= 0.2 && score < 0.6) distribution[3].count++;
+          else if (score >= 0.6 && score <= 1.0) distribution[4].count++;
+        });
 
-      const distribution = [
-        { range: "Very Negative (-1.0 to -0.6)", count: 0 },
-        { range: "Negative (-0.6 to -0.2)", count: 0 },
-        { range: "Neutral (-0.2 to 0.2)", count: 0 },
-        { range: "Positive (0.2 to 0.6)", count: 0 },
-        { range: "Very Positive (0.6 to 1.0)", count: 0 }
-      ];
-
-      scores.forEach(score => {
-        if (score >= -1.0 && score < -0.6) distribution[0].count++;
-        else if (score >= -0.6 && score < -0.2) distribution[1].count++;
-        else if (score >= -0.2 && score < 0.2) distribution[2].count++;
-        else if (score >= 0.2 && score < 0.6) distribution[3].count++;
-        else if (score >= 0.6 && score <= 1.0) distribution[4].count++;
-      });
-
-      setDistributionData(distribution);
-    }
-  }, [text]);
+        setDistributionData(distribution);
+      }
+    };
+    
+    analyzeText();
+  }, [text, toast]);
 
   const handleExportToExcel = () => {
     if (analysis.comments.length === 0) return;
@@ -268,7 +296,7 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center">
-            {getSentimentIcon(analysis.score)}
+            {getSentimentIcon(aiScore !== null ? aiScore : analysis.score)}
             <span className="ml-2">Sentiment Analysis</span>
           </CardTitle>
           {analysis.comments.length > 0 && (
@@ -300,16 +328,21 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
               />
               <div className="flex justify-between items-center">
                 <span className="font-medium">
-                  Rule-based Score: {analysis.score}
+                  Rule-based Score: {analysis.score.toFixed(2)}
                 </span>
                 <span className="font-medium">{sentimentLabel}</span>
               </div>
-              {aiScore !== null && (
+              
+              {isAnalyzing ? (
+                <div className="mt-2 p-3 bg-muted rounded-lg flex items-center justify-center">
+                  <div className="font-medium text-center">Analyzing with AI...</div>
+                </div>
+              ) : aiScore !== null ? (
                 <div className="mt-2 p-3 bg-muted rounded-lg">
                   <div className="font-medium mb-1">AI Analysis Score</div>
                   <div className="text-2xl font-bold">{aiScore.toFixed(2)}</div>
                 </div>
-              )}
+              ) : null}
             </div>
             
             <div>
