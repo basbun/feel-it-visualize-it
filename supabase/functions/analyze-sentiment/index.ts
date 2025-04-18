@@ -43,7 +43,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: 'You are a topic modeling expert. Analyze the text and identify key themes/topics. For each topic, provide a short label and list of related comments. Return the result as a JSON array where each object has properties: "topic" (string), "comments" (array of strings). Make sure each comment is assigned to exactly one most relevant topic. Every comment must be assigned to a topic.'
+              content: 'You are a topic modeling expert. Analyze the text and identify key themes/topics. For each topic, provide a short label and list of related comments. Return the result as a valid JSON array where each object has properties: "topic" (string), "comments" (array of strings). Make sure each comment is assigned to exactly one most relevant topic. Every comment must be assigned to a topic. Important: Return ONLY the JSON array with no markdown or code block formatting.'
             },
             { role: 'user', content: text }
           ],
@@ -58,12 +58,25 @@ serve(async (req) => {
         throw new Error('Invalid response from OpenAI API');
       }
       
-      const topics = JSON.parse(data.choices[0].message.content);
+      // Extract just the JSON content from the response, removing any markdown formatting
+      let topicsContent = data.choices[0].message.content;
+      // Remove markdown code block indicators if present
+      topicsContent = topicsContent.replace(/```json\n|\n```|```/g, '');
       
-      return new Response(
-        JSON.stringify({ topics }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      try {
+        const topics = JSON.parse(topicsContent);
+        
+        return new Response(
+          JSON.stringify({ topics }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (parseError) {
+        console.error('Error parsing topics JSON:', parseError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to parse topics response', details: parseError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
     
     // Original sentiment analysis code

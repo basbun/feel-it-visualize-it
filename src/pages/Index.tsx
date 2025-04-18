@@ -21,14 +21,11 @@ const Index = () => {
       </header>
       
       <main className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1">
-            <TextInput onAnalyze={handleAnalyzeText} />
-          </div>
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 gap-6">
+          <TextInput onAnalyze={handleAnalyzeText} />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SentimentAnalysis text={text} />
-          </div>
-          <div className="lg:col-span-1">
             <TopicAnalysis text={text} />
           </div>
         </div>

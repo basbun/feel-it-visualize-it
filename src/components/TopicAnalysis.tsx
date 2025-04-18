@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FolderKanban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Topic {
   topic: string;
@@ -20,6 +21,17 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
   const { toast } = useToast();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
+
+  const toggleTopic = (index: number) => {
+    const newExpandedTopics = new Set(expandedTopics);
+    if (newExpandedTopics.has(index)) {
+      newExpandedTopics.delete(index);
+    } else {
+      newExpandedTopics.add(index);
+    }
+    setExpandedTopics(newExpandedTopics);
+  };
 
   useEffect(() => {
     const analyzeTopics = async () => {
@@ -76,6 +88,14 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
     return "bg-yellow-500";
   };
 
+  const getSentimentLabel = (score: number) => {
+    if (score > 0.6) return "Very Positive";
+    if (score > 0.3) return "Positive";
+    if (score > -0.3) return "Neutral";
+    if (score > -0.6) return "Negative";
+    return "Very Negative";
+  };
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -84,7 +104,7 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
           Topic Analysis
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {isAnalyzing ? (
           <div className="flex flex-col items-center justify-center h-48">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
@@ -92,25 +112,37 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
           </div>
         ) : text ? (
           topics.length > 0 ? (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {topics.map((topic, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">{topic.topic}</h3>
-                    <span className="text-sm font-medium">
-                      Sentiment: {topic.averageSentiment?.toFixed(2)}
-                    </span>
+                <Collapsible key={index} open={expandedTopics.has(index)} onOpenChange={() => toggleTopic(index)}>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <CollapsibleTrigger className="flex items-center gap-2 font-medium w-full text-left">
+                        <h3 className="text-lg font-semibold hover:underline">{topic.topic}</h3>
+                      </CollapsibleTrigger>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-xs ${topic.averageSentiment && topic.averageSentiment > 0 ? 'bg-green-100 text-green-800' : topic.averageSentiment && topic.averageSentiment < 0 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {topic.averageSentiment ? getSentimentLabel(topic.averageSentiment) : 'Neutral'}
+                        </span>
+                        <span className="text-sm font-medium">
+                          {topic.averageSentiment?.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <Progress 
+                      value={((topic.averageSentiment || 0) + 1) * 50} 
+                      className={`h-2 ${getSentimentColor(topic.averageSentiment || 0)}`}
+                    />
+                    <CollapsibleContent>
+                      <div className="bg-muted/50 p-3 rounded-md space-y-1.5 mt-2">
+                        <p className="text-xs text-muted-foreground mb-1">Comments ({topic.comments.length})</p>
+                        {topic.comments.map((comment, commentIndex) => (
+                          <p key={commentIndex} className="text-sm py-1 border-b border-muted last:border-0">{comment}</p>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
                   </div>
-                  <Progress 
-                    value={((topic.averageSentiment || 0) + 1) * 50} 
-                    className={`h-2 ${getSentimentColor(topic.averageSentiment || 0)}`}
-                  />
-                  <div className="bg-muted/50 p-4 rounded-md space-y-2">
-                    {topic.comments.map((comment, commentIndex) => (
-                      <p key={commentIndex} className="text-sm">{comment}</p>
-                    ))}
-                  </div>
-                </div>
+                </Collapsible>
               ))}
             </div>
           ) : (
