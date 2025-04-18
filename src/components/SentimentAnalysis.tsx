@@ -16,7 +16,9 @@ interface SentimentAnalysisProps {
 const splitTextIntoComments = (text: string): string[] => {
   if (!text) return [];
   
-  const comments = text.split(/[\n;.]+/)
+  // Split by newlines first, then handle each line as a separate comment
+  // This preserves periods within sentences while still allowing multiple comments
+  const comments = text.split(/\n+/)
     .map(comment => comment.trim())
     .filter(comment => comment.length > 0);
   
