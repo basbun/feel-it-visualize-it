@@ -1,7 +1,8 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet } from "lucide-react";
+import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import * as XLSX from 'xlsx';
@@ -20,116 +21,6 @@ const splitTextIntoComments = (text: string): string[] => {
     .filter(comment => comment.length > 0);
   
   return comments;
-};
-
-const analyzeSentiment = (text: string) => {
-  if (!text) return { score: 0, comments: [] };
-  
-  const comments = splitTextIntoComments(text);
-  
-  const positiveWords = [
-    'good', 'great', 'excellent', 'happy', 'positive', 'nice', 'love', 'best', 'wonderful',
-    'amazing', 'outstanding', 'fantastic', 'terrific', 'impressive', 'beautiful', 'brilliant',
-    'delightful', 'perfect', 'pleased', 'superb', 'exciting', 'thrilled', 'joy', 'successful',
-    'awesome', 'incredible', 'remarkable', 'enjoy', 'praise', 'appreciated', 'satisfied',
-    'enjoy', 'like', 'liked', 'recommend', 'recommended', 'favorite', 'awesome', 'win', 'winner',
-    'worthy', 'worth', 'fun', 'funny', 'entertaining', 'easy', 'pleasant', 'glad', 'thankful',
-    'grateful', 'helpful', 'useful', 'insightful', 'informative', 'interesting', 'engaging'
-  ];
-  
-  const negativeWords = [
-    'bad', 'worst', 'terrible', 'sad', 'negative', 'hate', 'awful', 'poor', 'disappointed',
-    'horrible', 'unfortunate', 'failure', 'disappointing', 'useless', 'mediocre', 'rubbish',
-    'pathetic', 'horrible', 'disaster', 'frustrating', 'annoying', 'unhappy', 'angry', 'miserable',
-    'disgusting', 'dreadful', 'unpleasant', 'dislike', 'inadequate', 'inferior', 'problem',
-    'broken', 'waste', 'difficult', 'hard', 'slow', 'confusing', 'confused', 'boring', 'bored',
-    'ugly', 'expensive', 'overpriced', 'fail', 'failed', 'mistake', 'error', 'wrong', 'bad',
-    'buggy', 'glitchy', 'concern', 'concerned', 'worried', 'worry', 'tired', 'exhausted',
-    'uncomfortable', 'inconvenient', 'complicated', 'issue', 'issues', 'trouble', 'troubling'
-  ];
-  
-  const intensifiers = [
-    'very', 'extremely', 'absolutely', 'completely', 'totally', 'utterly', 
-    'really', 'truly', 'incredibly', 'exceptionally', 'highly', 'especially',
-    'particularly', 'remarkably', 'terribly', 'awfully', 'super', 'quite',
-    'definitely', 'certainly', 'undoubtedly', 'surely', 'indeed'
-  ];
-  
-  const negators = [
-    'not', "don't", 'never', 'no', 'neither', 'nor', "isn't", "wasn't", "aren't", "weren't",
-    "doesn't", "didn't", "can't", "couldn't", "won't", "wouldn't", 'hardly', 'barely',
-    'scarcely', 'seldom', 'rarely', 'nothing', 'nobody', 'none', 'nowhere', 'without'
-  ];
-  
-  const commentScores = comments.map(comment => {
-    const lowerComment = comment.toLowerCase();
-    const words = lowerComment.split(/\s+/);
-    let commentScore = 0;
-    let totalWordWeight = 0;
-    
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i].replace(/[^\w']/g, '');
-      let wordScore = 0;
-      let intensifierMultiplier = 1;
-      let negationEffect = 1;
-      
-      for (let j = Math.max(0, i-2); j < i; j++) {
-        if (intensifiers.includes(words[j])) {
-          intensifierMultiplier = 1.8;
-          break;
-        }
-      }
-      
-      for (let j = Math.max(0, i-3); j < i; j++) {
-        if (negators.includes(words[j])) {
-          negationEffect = -1;
-          break;
-        }
-      }
-      
-      if (positiveWords.includes(word)) {
-        wordScore = 0.6 * intensifierMultiplier * negationEffect;
-      } else if (negativeWords.includes(word)) {
-        wordScore = -0.6 * intensifierMultiplier * negationEffect;
-      }
-      
-      const positionFactor = (i < words.length / 4 || i > words.length * 3/4) ? 1.5 : 1;
-      
-      wordScore *= positionFactor;
-      
-      commentScore += wordScore;
-      if (wordScore !== 0) {
-        totalWordWeight++;
-      }
-    }
-    
-    if (totalWordWeight > 0) {
-      const lengthFactor = Math.min(2.0, 3.0 / Math.sqrt(words.length));
-      commentScore = (commentScore / Math.max(1, Math.sqrt(totalWordWeight))) * lengthFactor;
-      
-      if (commentScore > 0 && commentScore < 0.2) commentScore = 0.2;
-      if (commentScore < 0 && commentScore > -0.2) commentScore = -0.2;
-    } else {
-      const exclamationCount = (comment.match(/!/g) || []).length;
-      const questionCount = (comment.match(/\?/g) || []).length;
-      
-      if (exclamationCount > 0) commentScore = 0.1 * exclamationCount;
-      if (questionCount > 1) commentScore = -0.05 * questionCount;
-    }
-    
-    commentScore = Math.max(-1, Math.min(1, commentScore));
-    
-    return { text: comment, score: Number(commentScore.toFixed(2)) };
-  });
-  
-  const overallScore = commentScores.length > 0 
-    ? commentScores.reduce((sum, c) => sum + c.score, 0) / commentScores.length 
-    : 0;
-  
-  return {
-    score: Number(overallScore.toFixed(2)),
-    comments: commentScores
-  };
 };
 
 const calculateStdDev = (values: number[]): number => {
@@ -155,11 +46,8 @@ const getSentimentIcon = (score: number) => {
 };
 
 const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
-  const [analysis, setAnalysis] = useState<{ 
-    score: number; 
-    comments: { text: string; score: number }[] 
-  }>({ score: 0, comments: [] });
-  const [aiScore, setAiScore] = useState<number | null>(null);
+  const [comments, setComments] = useState<{ text: string; score: number }[]>([]);
+  const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [stdDev, setStdDev] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
@@ -167,61 +55,61 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
   
   useEffect(() => {
     if (!text) {
-      setAnalysis({ score: 0, comments: [] });
-      setAiScore(null);
+      setComments([]);
+      setOverallScore(0);
       setStdDev(0);
       setDistributionData([]);
       return;
     }
 
-    const analyzeText = async () => {
+    const analyzeTextSentiment = async () => {
       setIsAnalyzing(true);
+      const commentsList = splitTextIntoComments(text);
       
+      if (commentsList.length === 0) {
+        setIsAnalyzing(false);
+        return;
+      }
+
       try {
+        // First, analyze the overall sentiment
         const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
           body: { text }
         });
         
         if (error) {
-          console.error('Error getting AI sentiment:', error);
-          toast({
-            title: "API Error",
-            description: "Could not get API sentiment analysis. Using rule-based analysis only.",
-            variant: "destructive"
-          });
-          
-          const fallbackResult = analyzeSentiment(text);
-          setAnalysis(fallbackResult);
-          processAnalysisResults(fallbackResult);
-        } else {
-          console.log('Received API sentiment analysis:', data);
-          setAiScore(data.score);
-          
-          const ruleBasedResult = analyzeSentiment(text);
-          setAnalysis(ruleBasedResult);
-          processAnalysisResults(ruleBasedResult);
+          throw new Error(error.message);
         }
-      } catch (error) {
-        console.error('Error invoking AI sentiment analysis:', error);
-        toast({
-          title: "Analysis Error",
-          description: "An error occurred during sentiment analysis. Using rule-based analysis.",
-          variant: "destructive"
+        
+        setOverallScore(data.score);
+        
+        // Now analyze each comment individually
+        const commentPromises = commentsList.map(async (comment) => {
+          try {
+            const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
+              body: { text: comment }
+            });
+            
+            if (error) {
+              console.error('Error analyzing comment:', error);
+              return { text: comment, score: 0 };
+            }
+            
+            return { text: comment, score: data.score };
+          } catch (err) {
+            console.error('Error processing comment:', err);
+            return { text: comment, score: 0 };
+          }
         });
         
-        const fallbackResult = analyzeSentiment(text);
-        setAnalysis(fallbackResult);
-        processAnalysisResults(fallbackResult);
-      } finally {
-        setIsAnalyzing(false);
-      }
-    };
-    
-    const processAnalysisResults = (result: { score: number, comments: { text: string; score: number }[] }) => {
-      if (result.comments.length > 0) {
-        const scores = result.comments.map(c => c.score);
+        const analyzedComments = await Promise.all(commentPromises);
+        setComments(analyzedComments);
+        
+        // Calculate statistics
+        const scores = analyzedComments.map(c => c.score);
         setStdDev(calculateStdDev(scores));
-
+        
+        // Create distribution data
         const distribution = [
           { range: "Very Negative (-1.0 to -0.6)", count: 0 },
           { range: "Negative (-0.6 to -0.2)", count: 0 },
@@ -239,16 +127,25 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
         });
 
         setDistributionData(distribution);
+      } catch (error) {
+        console.error('Error in sentiment analysis:', error);
+        toast({
+          title: "Analysis Error",
+          description: "Could not complete sentiment analysis. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsAnalyzing(false);
       }
     };
     
-    analyzeText();
+    analyzeTextSentiment();
   }, [text, toast]);
 
   const handleExportToExcel = () => {
-    if (analysis.comments.length === 0) return;
+    if (comments.length === 0) return;
 
-    const exportData = analysis.comments.map((comment, index) => ({
+    const exportData = comments.map((comment, index) => ({
       'Comment Number': index + 1,
       'Comment Text': comment.text,
       'Sentiment Score': comment.score,
@@ -271,17 +168,17 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
     XLSX.writeFile(wb, "sentiment-analysis.xlsx");
   };
 
-  const normalizedScore = ((analysis.score + 1) / 2) * 100;
+  const normalizedScore = ((overallScore + 1) / 2) * 100;
   
   let sentimentLabel = "Neutral";
-  if (analysis.score > 0.6) sentimentLabel = "Very Positive";
-  else if (analysis.score > 0.2) sentimentLabel = "Positive";
-  else if (analysis.score < -0.6) sentimentLabel = "Very Negative";
-  else if (analysis.score < -0.2) sentimentLabel = "Negative";
+  if (overallScore > 0.6) sentimentLabel = "Very Positive";
+  else if (overallScore > 0.2) sentimentLabel = "Positive";
+  else if (overallScore < -0.6) sentimentLabel = "Very Negative";
+  else if (overallScore < -0.2) sentimentLabel = "Negative";
   
   const getProgressColor = () => {
-    if (analysis.score > 0.3) return "bg-green-500";
-    if (analysis.score < -0.3) return "bg-red-500";
+    if (overallScore > 0.3) return "bg-green-500";
+    if (overallScore < -0.3) return "bg-red-500";
     return "bg-yellow-500";
   };
   
@@ -296,10 +193,10 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center">
-            {getSentimentIcon(aiScore !== null ? aiScore : analysis.score)}
+            {getSentimentIcon(overallScore)}
             <span className="ml-2">Sentiment Analysis</span>
           </CardTitle>
-          {analysis.comments.length > 0 && (
+          {comments.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -313,7 +210,12 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-6 h-[calc(100%-80px)] overflow-auto">
-        {text ? (
+        {isAnalyzing ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+            <p className="text-muted-foreground">Analyzing sentiment...</p>
+          </div>
+        ) : text ? (
           <>
             <div>
               <h3 className="text-lg font-semibold mb-2">Overall Sentiment</h3>
@@ -328,21 +230,10 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
               />
               <div className="flex justify-between items-center">
                 <span className="font-medium">
-                  Rule-based Score: {analysis.score.toFixed(2)}
+                  Score: {overallScore.toFixed(2)}
                 </span>
                 <span className="font-medium">{sentimentLabel}</span>
               </div>
-              
-              {isAnalyzing ? (
-                <div className="mt-2 p-3 bg-muted rounded-lg flex items-center justify-center">
-                  <div className="font-medium text-center">Analyzing with AI...</div>
-                </div>
-              ) : aiScore !== null ? (
-                <div className="mt-2 p-3 bg-muted rounded-lg">
-                  <div className="font-medium mb-1">AI Analysis Score</div>
-                  <div className="text-2xl font-bold">{aiScore.toFixed(2)}</div>
-                </div>
-              ) : null}
             </div>
             
             <div>
@@ -350,7 +241,7 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <div className="text-sm text-muted-foreground">Average</div>
-                  <div className="text-2xl font-bold">{analysis.score}</div>
+                  <div className="text-2xl font-bold">{overallScore.toFixed(2)}</div>
                 </div>
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <div className="text-sm text-muted-foreground">Standard Deviation</div>
@@ -358,7 +249,7 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
                 </div>
                 <div className="bg-muted/50 p-4 rounded-lg col-span-2">
                   <div className="text-sm text-muted-foreground">Comments Analyzed</div>
-                  <div className="text-2xl font-bold">{analysis.comments.length}</div>
+                  <div className="text-2xl font-bold">{comments.length}</div>
                 </div>
               </div>
             </div>
@@ -398,7 +289,7 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
             <div>
               <h3 className="text-lg font-semibold mb-2">Individual Comments</h3>
               <div className="space-y-2">
-                {analysis.comments.map((comment, index) => (
+                {comments.map((comment, index) => (
                   <div key={index} className={`p-3 rounded-md border ${getCommentBorderColor(comment.score)}`}>
                     <div className="flex justify-between items-center">
                       <div className="text-sm font-medium">{comment.text}</div>
