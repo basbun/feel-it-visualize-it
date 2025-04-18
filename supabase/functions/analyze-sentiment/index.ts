@@ -21,7 +21,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text } = await req.json()
+    const { text, mode } = await req.json()
     
     if (!text || text.trim() === '') {
       return new Response(
@@ -29,7 +29,44 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    if (mode === 'topics') {
+      console.log('Analyzing topics for text');
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a topic modeling expert. Analyze the text and identify key themes/topics. For each topic, provide a short label and list of related comments. Return the result as a JSON array where each object has properties: "topic" (string), "comments" (array of strings). Make sure each comment is assigned to exactly one most relevant topic. Every comment must be assigned to a topic.'
+            },
+            { role: 'user', content: text }
+          ],
+          temperature: 0.3,
+        }),
+      })
+
+      const data = await response.json()
+      console.log('OpenAI topics response:', data);
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Invalid response from OpenAI API');
+      }
+      
+      const topics = JSON.parse(data.choices[0].message.content);
+      
+      return new Response(
+        JSON.stringify({ topics }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     
+    // Original sentiment analysis code
     console.log(`Analyzing sentiment for text (length: ${text.length})`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -52,7 +89,7 @@ serve(async (req) => {
     })
 
     const data = await response.json()
-    console.log('OpenAI response:', data);
+    console.log('OpenAI sentiment response:', data);
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       throw new Error('Invalid response from OpenAI API');
