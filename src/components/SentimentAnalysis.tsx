@@ -1,11 +1,10 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -144,30 +143,47 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
     analyzeTextSentiment();
   }, [text, toast]);
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     if (comments.length === 0) return;
 
-    const exportData = comments.map((comment, index) => ({
-      'Comment Number': index + 1,
-      'Comment Text': comment.text,
-      'Sentiment Score': comment.score,
-      'Sentiment Category': comment.score > 0.3 ? 'Positive' : 
-                          comment.score < -0.3 ? 'Negative' : 'Neutral'
-    }));
+    // Create a new workbook and worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Sentiment Analysis");
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Sentiment Analysis");
-
-    const colWidths = [
-      { wch: 15 },
-      { wch: 50 },
-      { wch: 15 },
-      { wch: 15 }
+    // Define columns
+    worksheet.columns = [
+      { header: 'Comment Number', key: 'number', width: 15 },
+      { header: 'Comment Text', key: 'text', width: 50 },
+      { header: 'Sentiment Score', key: 'score', width: 15 },
+      { header: 'Sentiment Category', key: 'category', width: 15 }
     ];
-    ws['!cols'] = colWidths;
 
-    XLSX.writeFile(wb, "sentiment-analysis.xlsx");
+    // Add rows from data
+    comments.forEach((comment, index) => {
+      worksheet.addRow({
+        number: index + 1,
+        text: comment.text,
+        score: comment.score,
+        category: comment.score > 0.3 ? 'Positive' : 
+                 comment.score < -0.3 ? 'Negative' : 'Neutral'
+      });
+    });
+
+    // Style the header row
+    worksheet.getRow(1).font = { bold: true };
+
+    // Generate a blob and trigger download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sentiment-analysis.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const normalizedScore = ((overallScore + 1) / 2) * 100;
