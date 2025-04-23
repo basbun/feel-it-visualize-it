@@ -1,73 +1,44 @@
-# Welcome to your Lovable project
+# Feel-It Visualize-It – Sentiment & Topic Analysis App
 
-## Project info
+Live App: [Demo](https://feel-it-visualize-it.lovable.app/)
 
-**URL**: https://lovable.dev/projects/906e33a6-a9b1-4b95-8a0e-0a3cadd81f8f
+## 🧠 Overview
 
-## How can I edit this code?
+This app transforms open-ended survey responses into actionable insights using real-time sentiment analysis and topic detection powered by LLMs (Large Language Models). Built for HR professionals and people leaders, it helps uncover what employees are feeling—and why.
 
-There are several ways of editing your application.
+## 🚀 Tech Stack
+•	Frontend: React, Tailwind CSS, shadcn-ui
+•	Build Tool: Vite
+•	Language: TypeScript
+•	Hosting & Dev Platform: Lovable
 
-**Use Lovable**
+## ✏️ How to Edit This Project
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/906e33a6-a9b1-4b95-8a0e-0a3cadd81f8f) and start prompting.
+### Option 1: Edit Locally with Your IDE
 
-Changes made via Lovable will be committed automatically to this repo.
+If you prefer local development, follow these steps:
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+#### Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+#### Navigate into the project folder
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+#### Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+#### Start development server
 npm run dev
-```
 
-**Edit a file directly in GitHub**
+Requirements:
+	•	Node.js & npm (Recommended to install using nvm)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Option 2: GitHub Web Editor
+•	Navigate to any file
+•	Click the ✏️ “Edit” icon
+•	Make changes and commit directly
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/906e33a6-a9b1-4b95-8a0e-0a3cadd81f8f) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### Option 3: GitHub Codespaces
+•	Click the green Code button on the repo
+•	Select the Codespaces tab
+•	Launch a new codespace to edit in-browser
