@@ -42,7 +42,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4.5-preview',
           messages: [
             {
               role: 'system',
@@ -62,11 +62,9 @@ serve(async (req) => {
         throw new Error('Invalid response from OpenAI API');
       }
       
-      // Extract just the JSON content from the response, removing any markdown formatting
       let topicsContent = data.choices[0].message.content;
       console.log('Topics raw content:', topicsContent);
       
-      // Remove markdown code block indicators if present
       topicsContent = topicsContent.replace(/```json\n|\n```|```/g, '');
       
       try {
@@ -86,7 +84,6 @@ serve(async (req) => {
       }
     }
     
-    // Original sentiment analysis code
     console.log(`Analyzing sentiment for text (length: ${text.length})`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -96,7 +93,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.5-preview',
         messages: [
           {
             role: 'system',
