@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -15,13 +15,16 @@ interface Topic {
 
 interface TopicAnalysisProps {
   text: string;
+  isParentAnalyzing?: boolean;
 }
 
-const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
+const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) => {
   const { toast } = useToast();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
+  const isFirstRender = useRef(true);
+  const previousText = useRef(text);
 
   const toggleTopic = (index: number) => {
     const newExpandedTopics = new Set(expandedTopics);
@@ -34,8 +37,25 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
   };
 
   useEffect(() => {
+    // If it's the first render with no text or the text hasn't changed, don't analyze
+    if ((isFirstRender.current && !text) || previousText.current === text) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Update previous text ref to current text
+    previousText.current = text;
+    isFirstRender.current = false;
+
+    // Reset topics if no text
+    if (!text) {
+      setTopics([]);
+      setIsAnalyzing(false);
+      return;
+    }
+
     const analyzeTopics = async () => {
-      if (!text) {
+      if (!text.trim()) {
         setTopics([]);
         return;
       }
@@ -79,7 +99,10 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
       }
     };
 
-    analyzeTopics();
+    // Only run the analysis if there's actual text to analyze
+    if (text.trim()) {
+      analyzeTopics();
+    }
   }, [text, toast]);
 
   const getSentimentColor = (score: number) => {
@@ -105,7 +128,7 @@ const TopicAnalysis = ({ text }: TopicAnalysisProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isAnalyzing ? (
+        {isAnalyzing || isParentAnalyzing ? (
           <div className="flex flex-col items-center justify-center h-48">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
             <p className="text-muted-foreground">Analyzing topics...</p>

@@ -1,15 +1,18 @@
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import TextInput from '@/components/TextInput';
 import SentimentAnalysis from '@/components/SentimentAnalysis';
 import TopicAnalysis from '@/components/TopicAnalysis';
 
 const Index = () => {
   const [text, setText] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
-  const handleAnalyzeText = (inputText: string) => {
+  const handleAnalyzeText = useCallback((inputText: string) => {
     setText(inputText);
-  };
+    // Only set analyzing to true when there is text to analyze
+    setIsAnalyzing(Boolean(inputText.trim()));
+  }, []);
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -25,8 +28,8 @@ const Index = () => {
           <TextInput onAnalyze={handleAnalyzeText} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SentimentAnalysis text={text} />
-            <TopicAnalysis text={text} />
+            <SentimentAnalysis text={text} isParentAnalyzing={isAnalyzing} />
+            <TopicAnalysis text={text} isParentAnalyzing={isAnalyzing} />
           </div>
         </div>
       </main>

@@ -1,8 +1,8 @@
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet, Loader2 } from "lucide-react";
-import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import ExcelJS from 'exceljs';
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface SentimentAnalysisProps {
   text: string;
+  isParentAnalyzing?: boolean;
 }
 
 const splitTextIntoComments = (text: string): string[] => {
@@ -46,20 +47,33 @@ const getSentimentIcon = (score: number) => {
   return <Meh className="h-6 w-6 text-yellow-500" />;
 };
 
-const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
+const SentimentAnalysis = ({ text, isParentAnalyzing = false }: SentimentAnalysisProps) => {
   const [comments, setComments] = useState<{ text: string; score: number }[]>([]);
   const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [stdDev, setStdDev] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
   const { toast } = useToast();
+  const isFirstRender = useRef(true);
+  const previousText = useRef(text);
   
   useEffect(() => {
+    // If it's the first render with no text or the text hasn't changed, don't analyze
+    if ((isFirstRender.current && !text) || previousText.current === text) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Update previous text ref to current text
+    previousText.current = text;
+    isFirstRender.current = false;
+    
     if (!text) {
       setComments([]);
       setOverallScore(0);
       setStdDev(0);
       setDistributionData([]);
+      setIsAnalyzing(false);
       return;
     }
 
@@ -140,7 +154,10 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
       }
     };
     
-    analyzeTextSentiment();
+    // Only run the analysis if there's actual text to analyze
+    if (text.trim()) {
+      analyzeTextSentiment();
+    }
   }, [text, toast]);
 
   const handleExportToExcel = async () => {
@@ -228,7 +245,7 @@ const SentimentAnalysis = ({ text }: SentimentAnalysisProps) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-6 h-[calc(100%-80px)] overflow-auto">
-        {isAnalyzing ? (
+        {isAnalyzing || isParentAnalyzing ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
             <p className="text-muted-foreground">Analyzing sentiment...</p>
