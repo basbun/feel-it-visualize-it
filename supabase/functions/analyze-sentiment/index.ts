@@ -14,6 +14,7 @@ serve(async (req) => {
 
   const openAIApiKey = Deno.env.get('OPENAI_API_KEY')
   if (!openAIApiKey) {
+    console.error('OpenAI API key not configured');
     return new Response(
       JSON.stringify({ error: 'OpenAI API key not configured' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -22,8 +23,10 @@ serve(async (req) => {
 
   try {
     const { text, mode } = await req.json()
+    console.log(`Request received: mode=${mode}, text length=${text?.length || 0}`);
     
     if (!text || text.trim() === '') {
+      console.error('No text provided for analysis');
       return new Response(
         JSON.stringify({ error: 'No text provided for analysis' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -39,7 +42,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4.1',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
@@ -52,26 +55,30 @@ serve(async (req) => {
       })
 
       const data = await response.json()
-      console.log('OpenAI topics response:', data);
+      console.log('OpenAI topics response received');
       
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('Invalid response from OpenAI API:', JSON.stringify(data));
         throw new Error('Invalid response from OpenAI API');
       }
       
       // Extract just the JSON content from the response, removing any markdown formatting
       let topicsContent = data.choices[0].message.content;
+      console.log('Topics raw content:', topicsContent);
+      
       // Remove markdown code block indicators if present
       topicsContent = topicsContent.replace(/```json\n|\n```|```/g, '');
       
       try {
         const topics = JSON.parse(topicsContent);
+        console.log(`Successfully parsed topics: ${topics.length} topics found`);
         
         return new Response(
           JSON.stringify({ topics }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       } catch (parseError) {
-        console.error('Error parsing topics JSON:', parseError);
+        console.error('Error parsing topics JSON:', parseError, 'Content was:', topicsContent);
         return new Response(
           JSON.stringify({ error: 'Failed to parse topics response', details: parseError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -89,7 +96,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -102,24 +109,27 @@ serve(async (req) => {
     })
 
     const data = await response.json()
-    console.log('OpenAI sentiment response:', data);
+    console.log('OpenAI sentiment response received');
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('Invalid response from OpenAI API:', JSON.stringify(data));
       throw new Error('Invalid response from OpenAI API');
     }
     
     const aiScore = parseFloat(data.choices[0].message.content.trim())
     
     if (isNaN(aiScore)) {
+      console.error('Failed to parse sentiment score from OpenAI response:', data.choices[0].message.content);
       throw new Error('Failed to parse sentiment score from OpenAI response');
     }
 
+    console.log(`Sentiment analysis complete, score: ${aiScore}`);
     return new Response(
       JSON.stringify({ score: aiScore }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

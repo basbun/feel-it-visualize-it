@@ -16,16 +16,20 @@ interface Topic {
 interface TopicAnalysisProps {
   text: string;
   isParentAnalyzing?: boolean;
+  onAnalysisComplete?: () => void;
 }
 
-const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) => {
+const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: TopicAnalysisProps) => {
   const { toast } = useToast();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
+  
+  // Refs to control analysis flow
   const isFirstRender = useRef(true);
   const previousText = useRef(text);
   const isAnalysisInProgress = useRef(false);
+  const analysisRequested = useRef(false);
 
   const toggleTopic = (index: number) => {
     const newExpandedTopics = new Set(expandedTopics);
@@ -38,84 +42,122 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
   };
 
   useEffect(() => {
-    // If it's the first render with no text or the text hasn't changed, don't analyze
-    if ((isFirstRender.current && !text) || previousText.current === text) {
+    // If it's the first render with no text, don't analyze
+    if (isFirstRender.current && !text) {
       isFirstRender.current = false;
       return;
     }
 
-    // Update previous text ref to current text
+    // Update flags based on text change
+    const textChanged = previousText.current !== text;
     previousText.current = text;
     isFirstRender.current = false;
-
+    
     // Reset topics if no text
     if (!text) {
       setTopics([]);
       setIsAnalyzing(false);
+      if (onAnalysisComplete) onAnalysisComplete();
       return;
     }
 
-    // Prevent multiple parallel analyses
-    if (isAnalysisInProgress.current) return;
-
-    const analyzeTopics = async () => {
-      if (!text.trim()) {
-        setTopics([]);
-        return;
-      }
-
-      isAnalysisInProgress.current = true;
-      setIsAnalyzing(true);
-      
-      try {
-        // First get topics
-        const { data: topicsData, error: topicsError } = await supabase.functions.invoke('analyze-sentiment', {
-          body: { text, mode: 'topics' }
-        });
-
-        if (topicsError) throw topicsError;
-
-        if (!topicsData.topics || !Array.isArray(topicsData.topics)) {
-          throw new Error('Invalid topics response format');
-        }
-
-        // For each topic, analyze sentiment of its comments
-        const topicsWithSentiment = await Promise.all(
-          topicsData.topics.map(async (topic: Topic) => {
-            const commentsText = topic.comments.join('\n');
-            const { data: sentimentData, error: sentimentError } = await supabase.functions.invoke('analyze-sentiment', {
-              body: { text: commentsText }
-            });
-
-            if (sentimentError) throw sentimentError;
-
-            return {
-              ...topic,
-              averageSentiment: sentimentData.score
-            };
-          })
-        );
-
-        setTopics(topicsWithSentiment);
-      } catch (error: any) {
-        console.error('Error in topic analysis:', error);
-        toast({
-          title: "Analysis Error",
-          description: `Could not complete topic analysis: ${error.message}`,
-          variant: "destructive"
-        });
-        setTopics([]);
-      } finally {
-        setIsAnalyzing(false);
-        isAnalysisInProgress.current = false;
-      }
-    };
-
-    // Only run the analysis if there's actual text to analyze
-    if (text.trim()) {
+    // Only analyze if parent is analyzing or text changed
+    if ((isParentAnalyzing || textChanged) && text.trim()) {
+      analysisRequested.current = true;
       analyzeTopics();
     }
-  }, [text, toast]);
+  }, [text, isParentAnalyzing, onAnalysisComplete]);
+
+  const analyzeTopics = async () => {
+    // Don't start another analysis if one is in progress
+    if (isAnalysisInProgress.current) return;
+    
+    // Clear the analysis requested flag
+    analysisRequested.current = false;
+    isAnalysisInProgress.current = true;
+    setIsAnalyzing(true);
+    
+    if (!text.trim()) {
+      setTopics([]);
+      setIsAnalyzing(false);
+      isAnalysisInProgress.current = false;
+      if (onAnalysisComplete) onAnalysisComplete();
+      return;
+    }
+    
+    try {
+      console.log("Starting topic analysis");
+      // First get topics
+      const { data: topicsData, error: topicsError } = await supabase.functions.invoke('analyze-sentiment', {
+        body: { text, mode: 'topics' }
+      });
+
+      if (topicsError) {
+        console.error("Error from topic analysis edge function:", topicsError);
+        throw topicsError;
+      }
+      
+      console.log("Topic analysis response:", topicsData);
+      if (!topicsData || topicsData.error) {
+        throw new Error(topicsData?.error || "Failed to get topic analysis results");
+      }
+
+      if (!topicsData.topics || !Array.isArray(topicsData.topics)) {
+        console.error("Invalid topics response format:", topicsData);
+        throw new Error('Invalid topics response format');
+      }
+
+      console.log(`Found ${topicsData.topics.length} topics, analyzing sentiment for each`);
+      
+      // For each topic, analyze sentiment of its comments
+      const topicsWithSentiment = await Promise.all(
+        topicsData.topics.map(async (topic: Topic) => {
+          const commentsText = topic.comments.join('\n');
+          const { data: sentimentData, error: sentimentError } = await supabase.functions.invoke('analyze-sentiment', {
+            body: { text: commentsText }
+          });
+
+          if (sentimentError) {
+            console.error("Error analyzing sentiment for topic:", sentimentError);
+            throw sentimentError;
+          }
+
+          return {
+            ...topic,
+            averageSentiment: sentimentData.score
+          };
+        })
+      );
+
+      console.log("Topic analysis with sentiment completed successfully");
+      setTopics(topicsWithSentiment);
+      
+      // Show success toast
+      toast({
+        title: "Topic Analysis Complete",
+        description: `Identified ${topicsWithSentiment.length} topics in the text`,
+      });
+    } catch (error: any) {
+      console.error('Error in topic analysis:', error);
+      toast({
+        title: "Analysis Error",
+        description: `Could not complete topic analysis: ${error.message}`,
+        variant: "destructive"
+      });
+      setTopics([]);
+    } finally {
+      setIsAnalyzing(false);
+      isAnalysisInProgress.current = false;
+      
+      // Notify parent that analysis is complete
+      if (onAnalysisComplete) onAnalysisComplete();
+      
+      // If another analysis was requested while this one was in progress, run it now
+      if (analysisRequested.current) {
+        analyzeTopics();
+      }
+    }
+  };
 
   const getSentimentColor = (score: number) => {
     if (score > 0.3) return "bg-green-500";
@@ -140,7 +182,7 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {(isAnalyzing || isParentAnalyzing) ? (
+        {isAnalyzing ? (
           <div className="flex flex-col items-center justify-center h-48">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
             <p className="text-muted-foreground">Analyzing topics...</p>

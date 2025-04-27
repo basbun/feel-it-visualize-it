@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 interface SentimentAnalysisProps {
   text: string;
   isParentAnalyzing?: boolean;
+  onAnalysisComplete?: () => void;
 }
 
 const splitTextIntoComments = (text: string): string[] => {
@@ -48,125 +49,160 @@ const getSentimentIcon = (score: number) => {
   return <Meh className="h-6 w-6 text-yellow-500" />;
 };
 
-const SentimentAnalysis = ({ text, isParentAnalyzing = false }: SentimentAnalysisProps) => {
+const SentimentAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: SentimentAnalysisProps) => {
   const [comments, setComments] = useState<{ text: string; score: number }[]>([]);
   const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [stdDev, setStdDev] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
   const { toast } = useToast();
+  
+  // Refs to control analysis flow
   const isFirstRender = useRef(true);
   const previousText = useRef(text);
   const isAnalysisInProgress = useRef(false);
+  const analysisRequested = useRef(false);
   
   useEffect(() => {
-    // If it's the first render with no text or the text hasn't changed, don't analyze
-    if ((isFirstRender.current && !text) || previousText.current === text) {
+    // If it's the first render with no text, don't analyze
+    if (isFirstRender.current && !text) {
       isFirstRender.current = false;
       return;
     }
 
-    // Update previous text ref to current text
+    // Update flags based on text change
+    const textChanged = previousText.current !== text;
     previousText.current = text;
     isFirstRender.current = false;
     
+    // Reset states if no text
     if (!text) {
       setComments([]);
       setOverallScore(0);
       setStdDev(0);
       setDistributionData([]);
       setIsAnalyzing(false);
+      if (onAnalysisComplete) onAnalysisComplete();
+      return;
+    }
+    
+    // Only analyze if parent is analyzing or text changed
+    if ((isParentAnalyzing || textChanged) && text.trim()) {
+      analysisRequested.current = true;
+      analyzeTextSentiment();
+    }
+  }, [text, isParentAnalyzing, onAnalysisComplete]);
+
+  const analyzeTextSentiment = async () => {
+    // Don't start another analysis if one is in progress
+    if (isAnalysisInProgress.current) return;
+    
+    // Clear the analysis requested flag
+    analysisRequested.current = false;
+    isAnalysisInProgress.current = true;
+    setIsAnalyzing(true);
+    
+    const commentsList = splitTextIntoComments(text);
+    
+    if (commentsList.length === 0) {
+      setIsAnalyzing(false);
+      isAnalysisInProgress.current = false;
+      if (onAnalysisComplete) onAnalysisComplete();
       return;
     }
 
-    // Prevent multiple parallel analyses
-    if (isAnalysisInProgress.current) return;
-
-    const analyzeTextSentiment = async () => {
-      isAnalysisInProgress.current = true;
-      setIsAnalyzing(true);
-      const commentsList = splitTextIntoComments(text);
+    try {
+      console.log("Starting sentiment analysis for overall text");
+      // First, analyze the overall sentiment
+      const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
+        body: { text }
+      });
       
-      if (commentsList.length === 0) {
-        setIsAnalyzing(false);
-        isAnalysisInProgress.current = false;
-        return;
+      if (error) {
+        console.error("Error from sentiment analysis edge function:", error);
+        throw new Error(error.message);
       }
-
-      try {
-        // First, analyze the overall sentiment
-        const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
-          body: { text }
-        });
-        
-        if (error) {
-          throw new Error(error.message);
-        }
-        
-        setOverallScore(data.score);
-        
-        // Now analyze each comment individually
-        const commentPromises = commentsList.map(async (comment) => {
-          try {
-            const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
-              body: { text: comment }
-            });
-            
-            if (error) {
-              console.error('Error analyzing comment:', error);
-              return { text: comment, score: 0 };
-            }
-            
-            return { text: comment, score: data.score };
-          } catch (err) {
-            console.error('Error processing comment:', err);
+      
+      console.log("Sentiment analysis response:", data);
+      if (!data || data.error) {
+        throw new Error(data?.error || "Failed to get sentiment analysis results");
+      }
+      
+      setOverallScore(data.score);
+      
+      // Now analyze each comment individually
+      console.log(`Analyzing ${commentsList.length} individual comments`);
+      const commentPromises = commentsList.map(async (comment) => {
+        try {
+          const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
+            body: { text: comment }
+          });
+          
+          if (error) {
+            console.error('Error analyzing comment:', error);
             return { text: comment, score: 0 };
           }
-        });
-        
-        const analyzedComments = await Promise.all(commentPromises);
-        setComments(analyzedComments);
-        
-        // Calculate statistics
-        const scores = analyzedComments.map(c => c.score);
-        setStdDev(calculateStdDev(scores));
-        
-        // Create distribution data
-        const distribution = [
-          { range: "Very Negative (-1.0 to -0.6)", count: 0 },
-          { range: "Negative (-0.6 to -0.2)", count: 0 },
-          { range: "Neutral (-0.2 to 0.2)", count: 0 },
-          { range: "Positive (0.2 to 0.6)", count: 0 },
-          { range: "Very Positive (0.6 to 1.0)", count: 0 }
-        ];
+          
+          return { text: comment, score: data.score };
+        } catch (err) {
+          console.error('Error processing comment:', err);
+          return { text: comment, score: 0 };
+        }
+      });
+      
+      const analyzedComments = await Promise.all(commentPromises);
+      console.log(`Successfully analyzed ${analyzedComments.length} comments`);
+      setComments(analyzedComments);
+      
+      // Calculate statistics
+      const scores = analyzedComments.map(c => c.score);
+      setStdDev(calculateStdDev(scores));
+      
+      // Create distribution data
+      const distribution = [
+        { range: "Very Negative (-1.0 to -0.6)", count: 0 },
+        { range: "Negative (-0.6 to -0.2)", count: 0 },
+        { range: "Neutral (-0.2 to 0.2)", count: 0 },
+        { range: "Positive (0.2 to 0.6)", count: 0 },
+        { range: "Very Positive (0.6 to 1.0)", count: 0 }
+      ];
 
-        scores.forEach(score => {
-          if (score >= -1.0 && score < -0.6) distribution[0].count++;
-          else if (score >= -0.6 && score < -0.2) distribution[1].count++;
-          else if (score >= -0.2 && score < 0.2) distribution[2].count++;
-          else if (score >= 0.2 && score < 0.6) distribution[3].count++;
-          else if (score >= 0.6 && score <= 1.0) distribution[4].count++;
-        });
+      scores.forEach(score => {
+        if (score >= -1.0 && score < -0.6) distribution[0].count++;
+        else if (score >= -0.6 && score < -0.2) distribution[1].count++;
+        else if (score >= -0.2 && score < 0.2) distribution[2].count++;
+        else if (score >= 0.2 && score < 0.6) distribution[3].count++;
+        else if (score >= 0.6 && score <= 1.0) distribution[4].count++;
+      });
 
-        setDistributionData(distribution);
-      } catch (error: any) {
-        console.error('Error in sentiment analysis:', error);
-        toast({
-          title: "Analysis Error",
-          description: `Could not complete sentiment analysis: ${error.message}`,
-          variant: "destructive"
-        });
-      } finally {
-        setIsAnalyzing(false);
-        isAnalysisInProgress.current = false;
+      setDistributionData(distribution);
+      
+      // Show success toast
+      toast({
+        title: "Sentiment Analysis Complete",
+        description: `Overall sentiment score: ${data.score.toFixed(2)}`,
+      });
+    } catch (error: any) {
+      console.error('Error in sentiment analysis:', error);
+      toast({
+        title: "Analysis Error",
+        description: `Could not complete sentiment analysis: ${error.message}`,
+        variant: "destructive"
+      });
+      setComments([]);
+    } finally {
+      setIsAnalyzing(false);
+      isAnalysisInProgress.current = false;
+      
+      // Notify parent that analysis is complete
+      if (onAnalysisComplete) onAnalysisComplete();
+      
+      // If another analysis was requested while this one was in progress, run it now
+      if (analysisRequested.current) {
+        analyzeTextSentiment();
       }
-    };
-    
-    // Only run the analysis if there's actual text to analyze
-    if (text.trim()) {
-      analyzeTextSentiment();
     }
-  }, [text, toast]);
+  };
 
   const handleExportToExcel = async () => {
     if (comments.length === 0) return;
@@ -253,7 +289,7 @@ const SentimentAnalysis = ({ text, isParentAnalyzing = false }: SentimentAnalysi
         </div>
       </CardHeader>
       <CardContent className="space-y-6 h-[calc(100%-80px)] overflow-auto">
-        {(isAnalyzing || isParentAnalyzing) ? (
+        {isAnalyzing ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
             <p className="text-muted-foreground">Analyzing sentiment...</p>

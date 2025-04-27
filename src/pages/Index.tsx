@@ -3,16 +3,34 @@ import { useState, useCallback } from 'react';
 import TextInput from '@/components/TextInput';
 import SentimentAnalysis from '@/components/SentimentAnalysis';
 import TopicAnalysis from '@/components/TopicAnalysis';
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [text, setText] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const { toast } = useToast();
 
   const handleAnalyzeText = useCallback((inputText: string) => {
+    // Clear results if no text
+    if (!inputText.trim()) {
+      setText('');
+      setIsAnalyzing(false);
+      return;
+    }
+    
+    // Set analyzing to true and update text
     setText(inputText);
-    // Only set analyzing to true when there is text to analyze
-    setIsAnalyzing(Boolean(inputText.trim()));
-  }, []);
+    setIsAnalyzing(true);
+    
+    // Show toast to let user know analysis has started
+    toast({
+      title: "Analysis Started",
+      description: "Analyzing text for sentiment and topics...",
+    });
+    
+    // Let child components handle the actual API calls
+    // They will show their own loading states
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -28,8 +46,16 @@ const Index = () => {
           <TextInput onAnalyze={handleAnalyzeText} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SentimentAnalysis text={text} isParentAnalyzing={isAnalyzing} />
-            <TopicAnalysis text={text} isParentAnalyzing={isAnalyzing} />
+            <SentimentAnalysis 
+              text={text} 
+              isParentAnalyzing={isAnalyzing} 
+              onAnalysisComplete={() => setIsAnalyzing(false)}
+            />
+            <TopicAnalysis 
+              text={text} 
+              isParentAnalyzing={isAnalyzing} 
+              onAnalysisComplete={() => setIsAnalyzing(false)}
+            />
           </div>
         </div>
       </main>

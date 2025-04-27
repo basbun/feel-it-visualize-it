@@ -12,6 +12,7 @@ interface TextInputProps {
 
 const TextInput = ({ onAnalyze }: TextInputProps) => {
   const [text, setText] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
   
   const handleClear = () => {
@@ -21,7 +22,10 @@ const TextInput = ({ onAnalyze }: TextInputProps) => {
   
   const handleAnalyze = () => {
     if (text.trim()) {
+      setIsLoading(true);
       onAnalyze(text);
+      // The isLoading state will be handled by the parent component
+      setTimeout(() => setIsLoading(false), 500); // Reset loading state locally after a brief delay
     } else {
       toast({
         title: "Empty Input",
@@ -66,15 +70,15 @@ const TextInput = ({ onAnalyze }: TextInputProps) => {
           onChange={handleTextChange}
         />
         <div className="flex justify-end space-x-2 mt-auto">
-          <Button variant="outline" onClick={handleClear}>
+          <Button variant="outline" onClick={handleClear} disabled={isLoading}>
             <Eraser className="mr-2 h-4 w-4" />
             Clear
           </Button>
-          <Button onClick={handlePaste}>
+          <Button onClick={handlePaste} disabled={isLoading}>
             Paste from Clipboard
           </Button>
-          <Button onClick={handleAnalyze}>
-            Analyze Sentiment
+          <Button onClick={handleAnalyze} disabled={isLoading}>
+            {isLoading ? 'Analyzing...' : 'Analyze Sentiment'}
           </Button>
         </div>
       </CardContent>
