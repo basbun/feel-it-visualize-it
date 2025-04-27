@@ -5,9 +5,15 @@ import SentimentAnalysis from '@/components/SentimentAnalysis';
 import TopicAnalysis from '@/components/TopicAnalysis';
 import { useToast } from "@/hooks/use-toast";
 
+interface Topic {
+  topic: string;
+  comments: string[];
+}
+
 const Index = () => {
   const [text, setText] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const { toast } = useToast();
 
   const handleAnalyzeText = useCallback((inputText: string) => {
@@ -32,6 +38,10 @@ const Index = () => {
     // They will show their own loading states
   }, [toast]);
 
+  const handleTopicsUpdate = (newTopics: Topic[]) => {
+    setTopics(newTopics);
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <header className="max-w-7xl mx-auto mb-8">
@@ -48,6 +58,7 @@ const Index = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SentimentAnalysis 
               text={text} 
+              topics={topics}
               isParentAnalyzing={isAnalyzing} 
               onAnalysisComplete={() => setIsAnalyzing(false)}
             />
@@ -55,6 +66,7 @@ const Index = () => {
               text={text} 
               isParentAnalyzing={isAnalyzing} 
               onAnalysisComplete={() => setIsAnalyzing(false)}
+              onTopicsUpdate={handleTopicsUpdate}
             />
           </div>
         </div>

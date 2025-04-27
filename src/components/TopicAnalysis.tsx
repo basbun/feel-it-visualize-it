@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -17,15 +16,15 @@ interface TopicAnalysisProps {
   text: string;
   isParentAnalyzing?: boolean;
   onAnalysisComplete?: () => void;
+  onTopicsUpdate?: (topics: Topic[]) => void;
 }
 
-const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: TopicAnalysisProps) => {
+const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, onTopicsUpdate }: TopicAnalysisProps) => {
   const { toast } = useToast();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
   
-  // Refs to control analysis flow
   const isFirstRender = useRef(true);
   const previousText = useRef(text);
   const isAnalysisInProgress = useRef(false);
@@ -42,18 +41,15 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
   };
 
   useEffect(() => {
-    // If it's the first render with no text, don't analyze
     if (isFirstRender.current && !text) {
       isFirstRender.current = false;
       return;
     }
 
-    // Update flags based on text change
     const textChanged = previousText.current !== text;
     previousText.current = text;
     isFirstRender.current = false;
     
-    // Reset topics if no text
     if (!text) {
       setTopics([]);
       setIsAnalyzing(false);
@@ -61,7 +57,6 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
       return;
     }
 
-    // Only analyze if parent is analyzing or text changed
     if ((isParentAnalyzing || textChanged) && text.trim()) {
       analysisRequested.current = true;
       analyzeTopics();
@@ -69,10 +64,8 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
   }, [text, isParentAnalyzing, onAnalysisComplete]);
 
   const analyzeTopics = async () => {
-    // Don't start another analysis if one is in progress
     if (isAnalysisInProgress.current) return;
     
-    // Clear the analysis requested flag
     analysisRequested.current = false;
     isAnalysisInProgress.current = true;
     setIsAnalyzing(true);
@@ -87,7 +80,6 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
     
     try {
       console.log("Starting topic analysis");
-      // First get topics
       const { data: topicsData, error: topicsError } = await supabase.functions.invoke('analyze-sentiment', {
         body: { text, mode: 'topics' }
       });
@@ -109,7 +101,6 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
 
       console.log(`Found ${topicsData.topics.length} topics, analyzing sentiment for each`);
       
-      // For each topic, analyze sentiment of its comments
       const topicsWithSentiment = await Promise.all(
         topicsData.topics.map(async (topic: Topic) => {
           const commentsText = topic.comments.join('\n');
@@ -131,8 +122,10 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
 
       console.log("Topic analysis with sentiment completed successfully");
       setTopics(topicsWithSentiment);
+      if (onTopicsUpdate) {
+        onTopicsUpdate(topicsWithSentiment);
+      }
       
-      // Show success toast
       toast({
         title: "Topic Analysis Complete",
         description: `Identified ${topicsWithSentiment.length} topics in the text`,
@@ -149,10 +142,8 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: 
       setIsAnalyzing(false);
       isAnalysisInProgress.current = false;
       
-      // Notify parent that analysis is complete
       if (onAnalysisComplete) onAnalysisComplete();
       
-      // If another analysis was requested while this one was in progress, run it now
       if (analysisRequested.current) {
         analyzeTopics();
       }

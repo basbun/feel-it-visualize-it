@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface SentimentAnalysisProps {
   text: string;
+  topics: { topic: string; comments: string[] }[];
   isParentAnalyzing?: boolean;
   onAnalysisComplete?: () => void;
 }
@@ -49,7 +49,7 @@ const getSentimentIcon = (score: number) => {
   return <Meh className="h-6 w-6 text-yellow-500" />;
 };
 
-const SentimentAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete }: SentimentAnalysisProps) => {
+const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysisComplete }: SentimentAnalysisProps) => {
   const [comments, setComments] = useState<{ text: string; score: number }[]>([]);
   const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -216,17 +216,22 @@ const SentimentAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete
       { header: 'Comment Number', key: 'number', width: 15 },
       { header: 'Comment Text', key: 'text', width: 50 },
       { header: 'Sentiment Score', key: 'score', width: 15 },
-      { header: 'Sentiment Category', key: 'category', width: 15 }
+      { header: 'Sentiment Category', key: 'category', width: 15 },
+      { header: 'Topic', key: 'topic', width: 30 }
     ];
 
     // Add rows from data
     comments.forEach((comment, index) => {
+      // Find the topic for this comment
+      const topic = topics.find(t => t.comments.includes(comment.text))?.topic || 'Uncategorized';
+      
       worksheet.addRow({
         number: index + 1,
         text: comment.text,
         score: comment.score,
         category: comment.score > 0.3 ? 'Positive' : 
-                 comment.score < -0.3 ? 'Negative' : 'Neutral'
+                 comment.score < -0.3 ? 'Negative' : 'Neutral',
+        topic: topic
       });
     });
 
