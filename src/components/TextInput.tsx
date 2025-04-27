@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eraser, FileText } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface TextInputProps {
   onAnalyze: (text: string) => void;
@@ -11,6 +12,7 @@ interface TextInputProps {
 
 const TextInput = ({ onAnalyze }: TextInputProps) => {
   const [text, setText] = useState<string>('');
+  const { toast } = useToast();
   
   const handleClear = () => {
     setText('');
@@ -20,6 +22,12 @@ const TextInput = ({ onAnalyze }: TextInputProps) => {
   const handleAnalyze = () => {
     if (text.trim()) {
       onAnalyze(text);
+    } else {
+      toast({
+        title: "Empty Input",
+        description: "Please enter some text to analyze.",
+        variant: "destructive"
+      });
     }
   };
   
@@ -34,6 +42,11 @@ const TextInput = ({ onAnalyze }: TextInputProps) => {
       }
     ).catch(err => {
       console.error('Failed to read clipboard contents: ', err);
+      toast({
+        title: "Clipboard Error",
+        description: "Failed to read clipboard contents.",
+        variant: "destructive"
+      });
     });
   };
   

@@ -25,6 +25,7 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
   const isFirstRender = useRef(true);
   const previousText = useRef(text);
+  const isAnalysisInProgress = useRef(false);
 
   const toggleTopic = (index: number) => {
     const newExpandedTopics = new Set(expandedTopics);
@@ -54,13 +55,18 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
       return;
     }
 
+    // Prevent multiple parallel analyses
+    if (isAnalysisInProgress.current) return;
+
     const analyzeTopics = async () => {
       if (!text.trim()) {
         setTopics([]);
         return;
       }
 
+      isAnalysisInProgress.current = true;
       setIsAnalyzing(true);
+      
       try {
         // First get topics
         const { data: topicsData, error: topicsError } = await supabase.functions.invoke('analyze-sentiment', {
@@ -68,6 +74,10 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
         });
 
         if (topicsError) throw topicsError;
+
+        if (!topicsData.topics || !Array.isArray(topicsData.topics)) {
+          throw new Error('Invalid topics response format');
+        }
 
         // For each topic, analyze sentiment of its comments
         const topicsWithSentiment = await Promise.all(
@@ -87,15 +97,17 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
         );
 
         setTopics(topicsWithSentiment);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in topic analysis:', error);
         toast({
           title: "Analysis Error",
-          description: "Could not complete topic analysis. Please try again.",
+          description: `Could not complete topic analysis: ${error.message}`,
           variant: "destructive"
         });
+        setTopics([]);
       } finally {
         setIsAnalyzing(false);
+        isAnalysisInProgress.current = false;
       }
     };
 
@@ -128,7 +140,7 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false }: TopicAnalysisProps) 
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isAnalyzing || isParentAnalyzing ? (
+        {(isAnalyzing || isParentAnalyzing) ? (
           <div className="flex flex-col items-center justify-center h-48">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
             <p className="text-muted-foreground">Analyzing topics...</p>
