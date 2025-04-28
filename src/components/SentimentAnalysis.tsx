@@ -211,6 +211,8 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       console.log(`\nProcessing comment ${index + 1}:`);
       console.log('Original:', comment.text);
       console.log('Normalized:', normalizedCommentText);
+      console.log('Normalized length:', normalizedCommentText.length);
+      console.log('Character codes:', [...normalizedCommentText].map(c => c.charCodeAt(0)));
       
       const matchingTopic = topics.find(t => {
         const hasMatch = t.comments.some(topicComment => {
@@ -220,8 +222,10 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
           console.log('Topic:', t.topic);
           console.log('Topic comment (original):', topicComment);
           console.log('Topic comment (normalized):', normalizedTopicComment);
-          console.log('Comment being matched (normalized):', normalizedCommentText);
+          console.log('Topic comment length:', normalizedTopicComment.length);
+          console.log('Topic comment codes:', [...normalizedTopicComment].map(c => c.charCodeAt(0)));
           console.log('Match?:', isMatch);
+          console.log('Exact comparison:', JSON.stringify(normalizedTopicComment) === JSON.stringify(normalizedCommentText));
           return isMatch;
         });
         return hasMatch;
