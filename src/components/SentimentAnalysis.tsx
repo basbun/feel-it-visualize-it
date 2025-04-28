@@ -191,7 +191,8 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const handleExportToExcel = async () => {
     if (comments.length === 0) return;
 
-    console.log('Exporting comments:', comments);
+    console.log('\n=== Excel Export Debug ===');
+    console.log('All comments:', comments);
     console.log('Available topics:', topics);
 
     const workbook = new ExcelJS.Workbook();
@@ -207,15 +208,27 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
 
     comments.forEach((comment, index) => {
       const normalizedCommentText = normalizeText(comment.text);
+      console.log(`\nProcessing comment ${index + 1}:`);
+      console.log('Original:', comment.text);
+      console.log('Normalized:', normalizedCommentText);
       
-      const topic = topics.find(t => 
-        t.comments.some(topicComment => 
-          normalizeText(topicComment) === normalizedCommentText
-        )
-      );
+      const matchingTopic = topics.find(t => {
+        const hasMatch = t.comments.some(topicComment => {
+          const normalizedTopicComment = normalizeText(topicComment);
+          const isMatch = normalizedTopicComment === normalizedCommentText;
+          console.log('\nTopic match check:');
+          console.log('Topic:', t.topic);
+          console.log('Topic comment (original):', topicComment);
+          console.log('Topic comment (normalized):', normalizedTopicComment);
+          console.log('Comment being matched (normalized):', normalizedCommentText);
+          console.log('Match?:', isMatch);
+          return isMatch;
+        });
+        return hasMatch;
+      });
 
-      console.log('Comment:', normalizedCommentText);
-      console.log('Found topic:', topic?.topic || 'Uncategorized');
+      const topic = matchingTopic?.topic || 'Uncategorized';
+      console.log('Final topic assignment:', topic);
       
       worksheet.addRow({
         number: index + 1,
@@ -223,7 +236,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
         score: comment.score,
         category: comment.score > 0.3 ? 'Positive' : 
                  comment.score < -0.3 ? 'Negative' : 'Neutral',
-        topic: topic?.topic || 'Uncategorized'
+        topic: topic
       });
     });
 

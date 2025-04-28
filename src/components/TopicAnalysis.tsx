@@ -80,7 +80,9 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, on
     }
     
     try {
+      console.log("\n=== Topic Analysis Debug ===");
       console.log("Starting topic analysis");
+      
       const { data: topicsData, error: topicsError } = await supabase.functions.invoke('analyze-sentiment', {
         body: { text, mode: 'topics' }
       });
@@ -91,6 +93,7 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, on
       }
       
       console.log("Topic analysis response:", topicsData);
+
       if (!topicsData || topicsData.error) {
         throw new Error(topicsData?.error || "Failed to get topic analysis results");
       }
@@ -104,11 +107,16 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, on
       
       const topicsWithSentiment = await Promise.all(
         topicsData.topics.map(async (topic: Topic) => {
-          const normalizedComments = topic.comments.map(comment => normalizeText(comment));
-          const commentsText = normalizedComments.join('\n');
+          console.log('\nProcessing topic:', topic.topic);
+          const normalizedComments = topic.comments.map(comment => {
+            const normalized = normalizeText(comment);
+            console.log('Original comment:', comment);
+            console.log('Normalized comment:', normalized);
+            return normalized;
+          });
           
           const { data: sentimentData, error: sentimentError } = await supabase.functions.invoke('analyze-sentiment', {
-            body: { text: commentsText }
+            body: { text: normalizedComments.join('\n') }
           });
 
           if (sentimentError) {
@@ -124,9 +132,7 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, on
         })
       );
 
-      console.log("Topic analysis with sentiment completed successfully");
-      console.log("Topics with sentiment:", topicsWithSentiment);
-      
+      console.log("\nFinal topics with sentiment:", topicsWithSentiment);
       setTopics(topicsWithSentiment);
       if (onTopicsUpdate) {
         onTopicsUpdate(topicsWithSentiment);

@@ -39,7 +39,8 @@ const Index = () => {
   }, [toast]);
 
   const handleTopicsUpdate = (newTopics: Topic[]) => {
-    console.log('Topics updated:', newTopics); // Debug log
+    console.log('=== Topics Update in Index ===');
+    console.log('Received topics:', newTopics);
     setTopics(newTopics);
   };
 
