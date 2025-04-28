@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import ExcelJS from 'exceljs';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeText } from '@/utils/textNormalization';
 
 interface SentimentAnalysisProps {
   text: string;
@@ -18,8 +19,6 @@ interface SentimentAnalysisProps {
 const splitTextIntoComments = (text: string): string[] => {
   if (!text) return [];
   
-  // Split by newlines first, then handle each line as a separate comment
-  // This preserves periods within sentences while still allowing multiple comments
   const comments = text.split(/\n+/)
     .map(comment => comment.trim())
     .filter(comment => comment.length > 0);
@@ -57,25 +56,21 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
   const { toast } = useToast();
   
-  // Refs to control analysis flow
   const isFirstRender = useRef(true);
   const previousText = useRef(text);
   const isAnalysisInProgress = useRef(false);
   const analysisRequested = useRef(false);
   
   useEffect(() => {
-    // If it's the first render with no text, don't analyze
     if (isFirstRender.current && !text) {
       isFirstRender.current = false;
       return;
     }
 
-    // Update flags based on text change
     const textChanged = previousText.current !== text;
     previousText.current = text;
     isFirstRender.current = false;
     
-    // Reset states if no text
     if (!text) {
       setComments([]);
       setOverallScore(0);
@@ -86,7 +81,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       return;
     }
     
-    // Only analyze if parent is analyzing or text changed
     if ((isParentAnalyzing || textChanged) && text.trim()) {
       analysisRequested.current = true;
       analyzeTextSentiment();
@@ -94,10 +88,8 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   }, [text, isParentAnalyzing, onAnalysisComplete]);
 
   const analyzeTextSentiment = async () => {
-    // Don't start another analysis if one is in progress
     if (isAnalysisInProgress.current) return;
     
-    // Clear the analysis requested flag
     analysisRequested.current = false;
     isAnalysisInProgress.current = true;
     setIsAnalyzing(true);
@@ -113,7 +105,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
 
     try {
       console.log("Starting sentiment analysis for overall text");
-      // First, analyze the overall sentiment
       const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
         body: { text }
       });
@@ -130,8 +121,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       
       setOverallScore(data.score);
       
-      // Now analyze each comment individually
-      console.log(`Analyzing ${commentsList.length} individual comments`);
       const commentPromises = commentsList.map(async (comment) => {
         try {
           const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
@@ -154,11 +143,9 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       console.log(`Successfully analyzed ${analyzedComments.length} comments`);
       setComments(analyzedComments);
       
-      // Calculate statistics
       const scores = analyzedComments.map(c => c.score);
       setStdDev(calculateStdDev(scores));
       
-      // Create distribution data
       const distribution = [
         { range: "Very Negative (-1.0 to -0.6)", count: 0 },
         { range: "Negative (-0.6 to -0.2)", count: 0 },
@@ -177,7 +164,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
 
       setDistributionData(distribution);
       
-      // Show success toast
       toast({
         title: "Sentiment Analysis Complete",
         description: `Overall sentiment score: ${data.score.toFixed(2)}`,
@@ -194,10 +180,8 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       setIsAnalyzing(false);
       isAnalysisInProgress.current = false;
       
-      // Notify parent that analysis is complete
       if (onAnalysisComplete) onAnalysisComplete();
       
-      // If another analysis was requested while this one was in progress, run it now
       if (analysisRequested.current) {
         analyzeTextSentiment();
       }
@@ -207,11 +191,12 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const handleExportToExcel = async () => {
     if (comments.length === 0) return;
 
-    // Create a new workbook and worksheet
+    console.log('Exporting comments:', comments);
+    console.log('Available topics:', topics);
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Sentiment Analysis");
 
-    // Define columns
     worksheet.columns = [
       { header: 'Comment Number', key: 'number', width: 15 },
       { header: 'Comment Text', key: 'text', width: 50 },
@@ -220,10 +205,17 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       { header: 'Topic', key: 'topic', width: 30 }
     ];
 
-    // Add rows from data
     comments.forEach((comment, index) => {
-      // Find the topic for this comment
-      const topic = topics.find(t => t.comments.includes(comment.text))?.topic || 'Uncategorized';
+      const normalizedCommentText = normalizeText(comment.text);
+      
+      const topic = topics.find(t => 
+        t.comments.some(topicComment => 
+          normalizeText(topicComment) === normalizedCommentText
+        )
+      );
+
+      console.log('Comment:', normalizedCommentText);
+      console.log('Found topic:', topic?.topic || 'Uncategorized');
       
       worksheet.addRow({
         number: index + 1,
@@ -231,14 +223,10 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
         score: comment.score,
         category: comment.score > 0.3 ? 'Positive' : 
                  comment.score < -0.3 ? 'Negative' : 'Neutral',
-        topic: topic
+        topic: topic?.topic || 'Uncategorized'
       });
     });
 
-    // Style the header row
-    worksheet.getRow(1).font = { bold: true };
-
-    // Generate a blob and trigger download
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);

@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, FolderKanban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { normalizeText } from '@/utils/textNormalization';
 
 interface Topic {
   topic: string;
@@ -103,7 +104,9 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, on
       
       const topicsWithSentiment = await Promise.all(
         topicsData.topics.map(async (topic: Topic) => {
-          const commentsText = topic.comments.join('\n');
+          const normalizedComments = topic.comments.map(comment => normalizeText(comment));
+          const commentsText = normalizedComments.join('\n');
+          
           const { data: sentimentData, error: sentimentError } = await supabase.functions.invoke('analyze-sentiment', {
             body: { text: commentsText }
           });
@@ -115,12 +118,15 @@ const TopicAnalysis = ({ text, isParentAnalyzing = false, onAnalysisComplete, on
 
           return {
             ...topic,
+            comments: normalizedComments,
             averageSentiment: sentimentData.score
           };
         })
       );
 
       console.log("Topic analysis with sentiment completed successfully");
+      console.log("Topics with sentiment:", topicsWithSentiment);
+      
       setTopics(topicsWithSentiment);
       if (onTopicsUpdate) {
         onTopicsUpdate(topicsWithSentiment);
