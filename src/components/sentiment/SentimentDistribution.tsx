@@ -1,5 +1,5 @@
 
-import { ChartIcon } from "lucide-react";
+import { BarChart as BarChartIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SentimentDistributionProps {
@@ -10,7 +10,7 @@ const SentimentDistribution = ({ distributionData }: SentimentDistributionProps)
   return (
     <div>
       <h3 className="text-lg font-semibold mb-2 flex items-center">
-        <ChartIcon className="mr-2 h-5 w-5" />
+        <BarChartIcon className="mr-2 h-5 w-5" />
         Sentiment Distribution
       </h3>
       <div className="h-64">
