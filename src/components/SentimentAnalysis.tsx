@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Smile, Meh, Frown, BarChart as ChartIcon, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FileSpreadsheet, Loader2, Smile, Meh, Frown } from "lucide-react";
 import ExcelJS from 'exceljs';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeText } from '@/utils/textNormalization';
+import { calculateStdDev, splitTextIntoComments } from '@/utils/sentimentUtils';
+import OverallSentiment from './sentiment/OverallSentiment';
+import SentimentStatistics from './sentiment/SentimentStatistics';
+import SentimentDistribution from './sentiment/SentimentDistribution';
+import CommentsList from './sentiment/CommentsList';
 
 interface SentimentAnalysisProps {
   text: string;
@@ -15,32 +18,6 @@ interface SentimentAnalysisProps {
   isParentAnalyzing?: boolean;
   onAnalysisComplete?: () => void;
 }
-
-const splitTextIntoComments = (text: string): string[] => {
-  if (!text) return [];
-  
-  const comments = text.split(/\n+/)
-    .map(comment => comment.trim())
-    .filter(comment => comment.length > 0);
-  
-  return comments;
-};
-
-const calculateStdDev = (values: number[]): number => {
-  if (values.length <= 1) return 0;
-  
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
-  const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / (values.length - 1);
-  
-  return Number(Math.sqrt(variance).toFixed(2));
-};
-
-const getSentimentColor = (score: number): string => {
-  if (score > 0.3) return 'sentiment-positive';
-  if (score < -0.3) return 'sentiment-negative';
-  return 'sentiment-neutral';
-};
 
 const getSentimentIcon = (score: number) => {
   if (score > 0.3) return <Smile className="h-6 w-6 text-green-500" />;
@@ -60,7 +37,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const previousText = useRef(text);
   const isAnalysisInProgress = useRef(false);
   const analysisRequested = useRef(false);
-  
+
   useEffect(() => {
     if (isFirstRender.current && !text) {
       isFirstRender.current = false;
@@ -257,26 +234,28 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
     URL.revokeObjectURL(url);
   };
 
-  const normalizedScore = ((overallScore + 1) / 2) * 100;
-  
-  let sentimentLabel = "Neutral";
-  if (overallScore > 0.6) sentimentLabel = "Very Positive";
-  else if (overallScore > 0.2) sentimentLabel = "Positive";
-  else if (overallScore < -0.6) sentimentLabel = "Very Negative";
-  else if (overallScore < -0.2) sentimentLabel = "Negative";
-  
-  const getProgressColor = () => {
-    if (overallScore > 0.3) return "bg-green-500";
-    if (overallScore < -0.3) return "bg-red-500";
-    return "bg-yellow-500";
-  };
-  
-  const getCommentBorderColor = (score: number) => {
-    if (score > 0.3) return "border-green-500";
-    if (score < -0.3) return "border-red-500";
-    return "border-yellow-500";
-  };
-  
+  if (isAnalyzing) {
+    return (
+      <Card className="h-full">
+        <CardContent className="flex flex-col items-center justify-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+          <p className="text-muted-foreground">Analyzing sentiment...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!text) {
+    return (
+      <Card className="h-full">
+        <CardContent className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+          <p className="mb-2">Enter text in the input area and click "Analyze Sentiment"</p>
+          <p>Results will appear here</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -299,107 +278,21 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
         </div>
       </CardHeader>
       <CardContent className="space-y-6 h-[calc(100%-80px)] overflow-auto">
-        {isAnalyzing ? (
-          <div className="flex flex-col items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
-            <p className="text-muted-foreground">Analyzing sentiment...</p>
-          </div>
-        ) : text ? (
-          comments.length > 0 ? (
-            <>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Overall Sentiment</h3>
-                <div className="flex items-center justify-between mb-2">
-                  <span>-1</span>
-                  <span>0</span>
-                  <span>1</span>
-                </div>
-                <Progress
-                  value={normalizedScore}
-                  className={`h-4 mb-2 ${getProgressColor()}`}
-                />
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">
-                    Score: {overallScore.toFixed(2)}
-                  </span>
-                  <span className="font-medium">{sentimentLabel}</span>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Statistics</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <div className="text-sm text-muted-foreground">Average</div>
-                    <div className="text-2xl font-bold">{overallScore.toFixed(2)}</div>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <div className="text-sm text-muted-foreground">Standard Deviation</div>
-                    <div className="text-2xl font-bold">{stdDev}</div>
-                  </div>
-                  <div className="bg-muted/50 p-4 rounded-lg col-span-2">
-                    <div className="text-sm text-muted-foreground">Comments Analyzed</div>
-                    <div className="text-2xl font-bold">{comments.length}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2 flex items-center">
-                  <ChartIcon className="mr-2 h-5 w-5" />
-                  Sentiment Distribution
-                </h3>
-                <div className="h-64">
-                  {distributionData.length > 0 && (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={distributionData}
-                        margin={{ top: 10, right: 10, left: 10, bottom: 40 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="range" 
-                          angle={-45} 
-                          textAnchor="end"
-                          height={70}
-                        />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Bar 
-                          dataKey="count" 
-                          fill="#3b82f6" 
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Individual Comments</h3>
-                <div className="space-y-2">
-                  {comments.map((comment, index) => (
-                    <div key={index} className={`p-3 rounded-md border ${getCommentBorderColor(comment.score)}`}>
-                      <div className="flex justify-between items-center">
-                        <div className="text-sm font-medium">{comment.text}</div>
-                        <div className="text-sm font-bold">{comment.score.toFixed(2)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-              <p className="mb-2">Analysis complete but no comments were found</p>
-              <p>Make sure your text contains at least one line</p>
-            </div>
-          )
+        {comments.length > 0 ? (
+          <>
+            <OverallSentiment overallScore={overallScore} />
+            <SentimentStatistics 
+              overallScore={overallScore}
+              stdDev={stdDev}
+              commentCount={comments.length}
+            />
+            <SentimentDistribution distributionData={distributionData} />
+            <CommentsList comments={comments} />
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <p className="mb-2">Enter text in the input area and click "Analyze Sentiment"</p>
-            <p>Results will appear here</p>
+            <p className="mb-2">Analysis complete but no comments were found</p>
+            <p>Make sure your text contains at least one line</p>
           </div>
         )}
       </CardContent>
