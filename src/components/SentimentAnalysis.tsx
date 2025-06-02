@@ -6,7 +6,7 @@ import ExcelJS from 'exceljs';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeText } from '@/utils/textNormalization';
-import { calculateStdDev, splitTextIntoComments } from '@/utils/sentimentUtils';
+import { calculateStdDev, calculateAverage, splitTextIntoComments } from '@/utils/sentimentUtils';
 import OverallSentiment from './sentiment/OverallSentiment';
 import SentimentStatistics from './sentiment/SentimentStatistics';
 import SentimentDistribution from './sentiment/SentimentDistribution';
@@ -30,6 +30,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [stdDev, setStdDev] = useState<number>(0);
+  const [averageScore, setAverageScore] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
   const { toast } = useToast();
   
@@ -52,6 +53,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       setComments([]);
       setOverallScore(0);
       setStdDev(0);
+      setAverageScore(0);
       setDistributionData([]);
       setIsAnalyzing(false);
       if (onAnalysisComplete) onAnalysisComplete();
@@ -122,6 +124,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       
       const scores = analyzedComments.map(c => c.score);
       setStdDev(calculateStdDev(scores));
+      setAverageScore(calculateAverage(scores));
       
       const distribution = [
         { range: "Very Negative (-1.0 to -0.6)", count: 0 },
@@ -283,7 +286,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
             <OverallSentiment overallScore={overallScore} />
             <SentimentStatistics 
               overallScore={overallScore}
-              commentScores={comments.map(c => c.score)}
+              averageScore={averageScore}
               stdDev={stdDev}
               commentCount={comments.length}
             />

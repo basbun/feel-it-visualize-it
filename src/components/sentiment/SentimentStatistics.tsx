@@ -1,17 +1,12 @@
 
 interface SentimentStatisticsProps {
   overallScore: number;
-  commentScores: number[];
+  averageScore: number;
   stdDev: number;
   commentCount: number;
 }
 
-const SentimentStatistics = ({ overallScore, commentScores, stdDev, commentCount }: SentimentStatisticsProps) => {
-  // Calculate the true average from individual comment scores
-  const averageScore = commentScores.length > 0 
-    ? commentScores.reduce((sum, score) => sum + score, 0) / commentScores.length 
-    : 0;
-
+const SentimentStatistics = ({ overallScore, averageScore, stdDev, commentCount }: SentimentStatisticsProps) => {
   return (
     <div>
       <h3 className="text-lg font-semibold mb-2">Statistics</h3>

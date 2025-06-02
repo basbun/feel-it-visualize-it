@@ -1,4 +1,3 @@
-
 export const calculateStdDev = (values: number[]): number => {
   if (values.length <= 1) return 0;
   
@@ -7,6 +6,13 @@ export const calculateStdDev = (values: number[]): number => {
   const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / (values.length - 1);
   
   return Number(Math.sqrt(variance).toFixed(2));
+};
+
+export const calculateAverage = (values: number[]): number => {
+  if (values.length === 0) return 0;
+  
+  const sum = values.reduce((sum, val) => sum + val, 0);
+  return Number((sum / values.length).toFixed(2));
 };
 
 export const getSentimentColor = (score: number): string => {
