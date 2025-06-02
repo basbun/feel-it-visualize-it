@@ -9,10 +9,41 @@ export const calculateStdDev = (values: number[]): number => {
 };
 
 export const calculateAverage = (values: number[]): number => {
-  if (values.length === 0) return 0;
+  console.log('=== calculateAverage Debug ===');
+  console.log('Input values:', values);
+  console.log('Values length:', values.length);
+  console.log('Values types:', values.map(v => typeof v));
   
-  const sum = values.reduce((sum, val) => sum + val, 0);
-  return Number((sum / values.length).toFixed(2));
+  if (values.length === 0) {
+    console.log('No values provided, returning 0');
+    return 0;
+  }
+  
+  // Filter out invalid values (NaN, null, undefined)
+  const validValues = values.filter(val => 
+    typeof val === 'number' && 
+    !isNaN(val) && 
+    isFinite(val)
+  );
+  
+  console.log('Valid values after filtering:', validValues);
+  console.log('Valid values length:', validValues.length);
+  
+  if (validValues.length === 0) {
+    console.log('No valid values after filtering, returning 0');
+    return 0;
+  }
+  
+  const sum = validValues.reduce((sum, val) => sum + val, 0);
+  const average = sum / validValues.length;
+  const result = Number(average.toFixed(2));
+  
+  console.log('Sum:', sum);
+  console.log('Raw average:', average);
+  console.log('Final result:', result);
+  console.log('=== End calculateAverage Debug ===');
+  
+  return result;
 };
 
 export const getSentimentColor = (score: number): string => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, Loader2, Smile, Meh, Frown } from "lucide-react";
@@ -29,8 +29,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const [comments, setComments] = useState<{ text: string; score: number }[]>([]);
   const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [stdDev, setStdDev] = useState<number>(0);
-  const [averageScore, setAverageScore] = useState<number>(0);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
   const { toast } = useToast();
   
@@ -38,6 +36,29 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
   const previousText = useRef(text);
   const isAnalysisInProgress = useRef(false);
   const analysisRequested = useRef(false);
+
+  // Calculate statistics using useMemo to ensure consistency
+  const statistics = useMemo(() => {
+    console.log('=== Statistics Calculation ===');
+    console.log('Comments array:', comments);
+    
+    if (comments.length === 0) {
+      console.log('No comments, returning default statistics');
+      return { stdDev: 0, averageScore: 0 };
+    }
+    
+    const scores = comments.map(c => c.score);
+    console.log('Extracted scores:', scores);
+    
+    const stdDev = calculateStdDev(scores);
+    const averageScore = calculateAverage(scores);
+    
+    console.log('Calculated stdDev:', stdDev);
+    console.log('Calculated averageScore:', averageScore);
+    console.log('=== End Statistics Calculation ===');
+    
+    return { stdDev, averageScore };
+  }, [comments]);
 
   useEffect(() => {
     if (isFirstRender.current && !text) {
@@ -52,8 +73,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
     if (!text) {
       setComments([]);
       setOverallScore(0);
-      setStdDev(0);
-      setAverageScore(0);
       setDistributionData([]);
       setIsAnalyzing(false);
       if (onAnalysisComplete) onAnalysisComplete();
@@ -100,32 +119,44 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       
       setOverallScore(data.score);
       
-      const commentPromises = commentsList.map(async (comment) => {
+      const commentPromises = commentsList.map(async (comment, index) => {
         try {
+          console.log(`Analyzing comment ${index + 1}: "${comment}"`);
           const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
             body: { text: comment }
           });
           
           if (error) {
-            console.error('Error analyzing comment:', error);
-            return { text: comment, score: 0 };
+            console.error(`Error analyzing comment ${index + 1}:`, error);
+            // Return null for failed analyses so we can filter them out
+            return null;
           }
           
+          if (!data || typeof data.score !== 'number' || isNaN(data.score)) {
+            console.error(`Invalid score received for comment ${index + 1}:`, data);
+            return null;
+          }
+          
+          console.log(`Comment ${index + 1} score:`, data.score);
           return { text: comment, score: data.score };
         } catch (err) {
-          console.error('Error processing comment:', err);
-          return { text: comment, score: 0 };
+          console.error(`Error processing comment ${index + 1}:`, err);
+          return null;
         }
       });
       
-      const analyzedComments = await Promise.all(commentPromises);
-      console.log(`Successfully analyzed ${analyzedComments.length} comments`);
+      const commentResults = await Promise.all(commentPromises);
+      
+      // Filter out failed analyses (null values)
+      const analyzedComments = commentResults.filter(result => result !== null) as { text: string; score: number }[];
+      
+      console.log(`Successfully analyzed ${analyzedComments.length} out of ${commentsList.length} comments`);
+      console.log('Final analyzed comments:', analyzedComments);
+      
       setComments(analyzedComments);
       
+      // Calculate distribution from valid scores only
       const scores = analyzedComments.map(c => c.score);
-      setStdDev(calculateStdDev(scores));
-      setAverageScore(calculateAverage(scores));
-      
       const distribution = [
         { range: "Very Negative (-1.0 to -0.6)", count: 0 },
         { range: "Negative (-0.6 to -0.2)", count: 0 },
@@ -286,8 +317,8 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
             <OverallSentiment overallScore={overallScore} />
             <SentimentStatistics 
               overallScore={overallScore}
-              averageScore={averageScore}
-              stdDev={stdDev}
+              averageScore={statistics.averageScore}
+              stdDev={statistics.stdDev}
               commentCount={comments.length}
             />
             <SentimentDistribution distributionData={distributionData} />
