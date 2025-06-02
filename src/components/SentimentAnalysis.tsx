@@ -283,6 +283,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
             <OverallSentiment overallScore={overallScore} />
             <SentimentStatistics 
               overallScore={overallScore}
+              commentScores={comments.map(c => c.score)}
               stdDev={stdDev}
               commentCount={comments.length}
             />
