@@ -1,13 +1,13 @@
+
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet, Loader2, Smile, Meh, Frown } from "lucide-react";
+import { FileSpreadsheet, Loader2, BarChart3 } from "lucide-react";
 import ExcelJS from 'exceljs';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeText } from '@/utils/textNormalization';
 import { calculateStdDev, calculateAverage, splitTextIntoComments } from '@/utils/sentimentUtils';
-import OverallSentiment from './sentiment/OverallSentiment';
 import SentimentStatistics from './sentiment/SentimentStatistics';
 import SentimentDistribution from './sentiment/SentimentDistribution';
 import CommentsList from './sentiment/CommentsList';
@@ -19,15 +19,8 @@ interface SentimentAnalysisProps {
   onAnalysisComplete?: () => void;
 }
 
-const getSentimentIcon = (score: number) => {
-  if (score > 0.3) return <Smile className="h-6 w-6 text-green-500" />;
-  if (score < -0.3) return <Frown className="h-6 w-6 text-red-500" />;
-  return <Meh className="h-6 w-6 text-yellow-500" />;
-};
-
 const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysisComplete }: SentimentAnalysisProps) => {
   const [comments, setComments] = useState<{ text: string; score: number }[]>([]);
-  const [overallScore, setOverallScore] = useState<number>(0);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [distributionData, setDistributionData] = useState<{ range: string; count: number }[]>([]);
   const { toast } = useToast();
@@ -72,7 +65,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
     
     if (!text) {
       setComments([]);
-      setOverallScore(0);
       setDistributionData([]);
       setIsAnalyzing(false);
       if (onAnalysisComplete) onAnalysisComplete();
@@ -102,23 +94,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
     }
 
     try {
-      console.log("Starting sentiment analysis for overall text");
-      const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
-        body: { text }
-      });
-      
-      if (error) {
-        console.error("Error from sentiment analysis edge function:", error);
-        throw new Error(error.message);
-      }
-      
-      console.log("Sentiment analysis response:", data);
-      if (!data || data.error) {
-        throw new Error(data?.error || "Failed to get sentiment analysis results");
-      }
-      
-      setOverallScore(data.score);
-      
       const commentPromises = commentsList.map(async (comment, index) => {
         try {
           console.log(`Analyzing comment ${index + 1}: "${comment}"`);
@@ -128,7 +103,6 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
           
           if (error) {
             console.error(`Error analyzing comment ${index + 1}:`, error);
-            // Return null for failed analyses so we can filter them out
             return null;
           }
           
@@ -177,7 +151,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       
       toast({
         title: "Sentiment Analysis Complete",
-        description: `Overall sentiment score: ${data.score.toFixed(2)}`,
+        description: `Analyzed ${analyzedComments.length} comments successfully.`,
       });
     } catch (error: any) {
       console.error('Error in sentiment analysis:', error);
@@ -295,7 +269,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center">
-            {getSentimentIcon(overallScore)}
+            <BarChart3 className="h-6 w-6 text-primary" />
             <span className="ml-2">Sentiment Analysis</span>
           </CardTitle>
           {comments.length > 0 && (
@@ -314,9 +288,7 @@ const SentimentAnalysis = ({ text, topics, isParentAnalyzing = false, onAnalysis
       <CardContent className="space-y-6 h-[calc(100%-80px)] overflow-auto">
         {comments.length > 0 ? (
           <>
-            <OverallSentiment overallScore={overallScore} />
             <SentimentStatistics 
-              overallScore={overallScore}
               averageScore={statistics.averageScore}
               stdDev={statistics.stdDev}
               commentCount={comments.length}
