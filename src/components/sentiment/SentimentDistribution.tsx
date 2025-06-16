@@ -26,6 +26,7 @@ const SentimentDistribution = ({ distributionData }: SentimentDistributionProps)
                 angle={-45} 
                 textAnchor="end"
                 height={70}
+                fontSize={10}
               />
               <YAxis allowDecimals={false} />
               <Tooltip />
